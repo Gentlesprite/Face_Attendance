@@ -5,6 +5,7 @@
 # File:face.py
 import datetime
 import os
+import numpy as np
 from typing import Union
 
 import cv2
@@ -36,7 +37,7 @@ class FaceDetect:
         rgb_frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
 
         os.makedirs(self.folder, exist_ok=True)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         photo_path = f'{self.folder}/{timestamp}.jpg'
         cv2.imwrite(photo_path, rgb_frame)
         return photo_path
@@ -46,9 +47,10 @@ class FaceDetect:
             age: Union[int, None] = None,
             gender: Union[str, None] = None,
             uid: Union[int, None] = None,
-            detect: bool = False
+            photo_path: Union[str, None] = None,
+            detect: bool = False  # 为True时只方法将只充当检测功能。
     ):
-        photo_path = self.__take_photo()
+        photo_path = self.__take_photo() if not photo_path else photo_path
         if photo_path is None:
             return None
 
@@ -70,15 +72,20 @@ class FaceDetect:
                 age=age,
                 gender=gender,
                 uid=uid,
-                face_path=photo_path,
+                photo_path=photo_path,
                 face_meta=face_meta
             )
         return face_meta
 
     def compare_face(self, unknown_face_meta, tolerance=0.5) -> Union[str, None]:
-        known_face_meta = self.jd.find()
         try:
-            for name, meta in known_face_meta:
+            data: dict = {}
+            for i in self.jd.data:
+                if i.get(self.jd.FACE_META) is not None:
+                    data[i.get(self.jd.NAME)] = np.array(i.get(self.jd.FACE_META))
+            if not data:
+                return None
+            for name, meta in data.items():
                 # 比较人脸特征，降低tolerance值提高严格度
                 results = face_recognition.compare_faces([meta], unknown_face_meta, tolerance=tolerance)
                 if results[0]:
@@ -106,6 +113,7 @@ class FaceDetect:
             return None
 
     def detect_loop(self, *args, **kwargs):
+        detect = True if len(args) == 1 else False
         while True:
             try:
                 face_meta = self.__get_face_meta(
@@ -113,24 +121,32 @@ class FaceDetect:
                     age=kwargs.get('age'),
                     gender=kwargs.get('gender'),
                     uid=kwargs.get('uid'),
-                    detect=kwargs.get('detect', False)
+                    photo_path=kwargs.get('photo_path'),
+                    detect=detect
                 )
+                '''
                 if face_meta is None:
                     console.print('未检测到人脸,请重试...')
                 match_name: Union[None, str] = self.compare_face(face_meta)
                 if match_name:
                     console.log(f'欢迎回来,识别结果:{match_name}!')
                     return match_name
+                '''
             except UserAlreadyExists as e:
                 log.warning(e)
                 return None
 
-    def add_face(self):
-        name = console.input('名字:')
-        age = int(console.input('年龄:'))
-        gender = console.input('性别:')
-        uid = int(console.input('uid:'))
-        self.detect_loop(name, age, gender, uid)
-
+    def add_face(
+            self,
+            **kwargs
+    ):
+        try:
+            name = kwargs.get('name') or console.input('名字:')
+            age = int(kwargs.get('age') or console.input('年龄:'))
+            gender = kwargs.get('gender') or console.input('性别:')
+            uid = int(kwargs.get('uid') or console.input('uid:'))
+            self.detect_loop(name, age, gender, uid)
+        except Exception as e:
+            log.error(e)
         console.print('\n=== 人脸识别 ===\n请面对摄像头进行识别...')
         self.detect_face()
