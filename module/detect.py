@@ -3,21 +3,20 @@
 # Software:PyCharm
 # Time:2025/5/15 23:57
 # File:face.py
-import datetime
-import os
 import numpy as np
 from typing import Union
 
 import cv2
 import face_recognition
 
-import module.database
 from module import log, console
+from module.utils import process_image
+from module.database import JsonDatabase
 from module.errors import UserAlreadyExists
 
 
 class FaceDetect:
-    def __init__(self, database: module.database.JsonDatabase, cap=cv2.VideoCapture(0), folder: str = 'photos'):
+    def __init__(self, database: JsonDatabase, cap=cv2.VideoCapture(0), folder: str = 'photos'):
         self.cap = cap
         self.folder: str = folder
         self.jd = database
@@ -27,20 +26,8 @@ class FaceDetect:
         if not ret:
             log.error('无法访问摄像头!')
             return None
-        # 转换为灰度图像（减少计算量）
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # 直方图均衡化（增强对比度）
-        gray = cv2.equalizeHist(gray)
-
-        # 转换为RGB格式（face_recognition需要）
-        rgb_frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
-
-        os.makedirs(self.folder, exist_ok=True)
-        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        photo_path = f'{self.folder}/{timestamp}.jpg'
-        cv2.imwrite(photo_path, rgb_frame)
-        return photo_path
+        return process_image(frame, self.folder)
 
     def __get_face_meta(
             self, name: Union[str, None] = None,
@@ -77,7 +64,7 @@ class FaceDetect:
             )
         return face_meta
 
-    def compare_face(self, unknown_face_meta, tolerance=0.5) -> Union[str, None]:
+    def compare_face(self, unknown_face_meta, tolerance=0.49) -> Union[str, None]:
         try:
             data: dict = {}
             for i in self.jd.data:
@@ -86,7 +73,7 @@ class FaceDetect:
             if not data:
                 return None
             for name, meta in data.items():
-                # 比较人脸特征，降低tolerance值提高严格度
+                # 比较人脸特征，降低tolerance值提高严格度。
                 results = face_recognition.compare_faces([meta], unknown_face_meta, tolerance=tolerance)
                 if results[0]:
                     # 添加距离检查
@@ -112,30 +99,6 @@ class FaceDetect:
             console.log('未识别到注册用户!')
             return None
 
-    def detect_loop(self, *args, **kwargs):
-        detect = True if len(args) == 1 else False
-        while True:
-            try:
-                face_meta = self.__get_face_meta(
-                    name=kwargs.get('name'),
-                    age=kwargs.get('age'),
-                    gender=kwargs.get('gender'),
-                    uid=kwargs.get('uid'),
-                    photo_path=kwargs.get('photo_path'),
-                    detect=detect
-                )
-                '''
-                if face_meta is None:
-                    console.print('未检测到人脸,请重试...')
-                match_name: Union[None, str] = self.compare_face(face_meta)
-                if match_name:
-                    console.log(f'欢迎回来,识别结果:{match_name}!')
-                    return match_name
-                '''
-            except UserAlreadyExists as e:
-                log.warning(e)
-                return None
-
     def add_face(
             self,
             **kwargs
@@ -145,8 +108,40 @@ class FaceDetect:
             age = int(kwargs.get('age') or console.input('年龄:'))
             gender = kwargs.get('gender') or console.input('性别:')
             uid = int(kwargs.get('uid') or console.input('uid:'))
-            self.detect_loop(name, age, gender, uid)
+            photo_path = kwargs.get('photo_path')
+            if photo_path:
+                face_meta = self.__get_face_meta(
+                    name=kwargs.get('name'),
+                    age=kwargs.get('age'),
+                    gender=kwargs.get('gender'),
+                    uid=kwargs.get('uid'),
+                    detect=False,
+                    photo_path=process_image(photo_path, self.folder)
+                )
+                if face_meta is None:
+                    console.print('在照片中未检测到人脸,请重试...')
+                else:
+                    console.print(f'新增用户:{name}。')
+            else:
+                detect = True if len(kwargs) == 1 else False
+                while True:
+                    try:
+                        face_meta = self.__get_face_meta(
+                            name=name,
+                            age=age,
+                            gender=gender,
+                            uid=uid,
+                            detect=detect
+                        )
+                        if face_meta is None:
+                            console.print('未检测到人脸,请重试...')
+                        match_name: Union[None, str] = self.compare_face(face_meta)
+                        if match_name:
+                            console.log(f'欢迎回来,识别结果:{match_name}!')
+                            break
+                    except UserAlreadyExists as e:
+                        log.warning(e)
+                        break
+                self.detect_face()
         except Exception as e:
             log.error(e)
-        console.print('\n=== 人脸识别 ===\n请面对摄像头进行识别...')
-        self.detect_face()
