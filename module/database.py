@@ -19,8 +19,12 @@ class JsonDatabase:
 
     def __init__(self, path: str):
         self.path = path
-        if not os.path.exists(path):
-            with open(path, 'w') as f:
+        self.data = None
+        self.load_data()
+
+    def load_data(self):
+        if not os.path.exists(self.path):
+            with open(self.path, 'w') as f:
                 json.dump([], f)
         with open(self.path, 'r') as f:
             self.data: dict = json.load(f)

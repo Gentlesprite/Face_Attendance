@@ -21,6 +21,7 @@ class FaceDetect:
         self.cap = cap
         self.folder: str = folder
         self.jd = database
+        self._cached_users = self._preprocess_data()
 
     def __take_photo(self) -> Union[str, None]:
         ret, frame = self.cap.read()
@@ -66,40 +67,56 @@ class FaceDetect:
                 photo_path=photo_path,
                 face_meta=face_meta
             )
+            self.jd.load_data()
         return face_meta
 
-    def compare_face(self, unknown_face_meta, tolerance=0.4, min_confidence=0.6):
-        try:
-            data = {}
-            for user in self.jd.data:
-                if user.get(self.jd.FACE_META):
-                    data[user[self.jd.NAME]] = {
-                        'meta': np.array(user[self.jd.FACE_META]),
-                        'uid': user.get(self.jd.UID)
-                    }
+    def _preprocess_data(self):
+        users = []
+        for user in self.jd.data:
+            face_meta = user.get(self.jd.FACE_META)
+            if face_meta:
+                # 转换为numpy数组并归一化
+                meta_array = np.array(face_meta, dtype=np.float32)
+                norm = np.linalg.norm(meta_array)
+                if norm == 0:
+                    continue  # 跳过无效特征
+                meta_normalized = meta_array / norm
+                users.append({
+                    'name': user[self.jd.NAME],
+                    'uid': user.get(self.jd.UID),
+                    'meta': meta_normalized
+                })
+        return users
 
-            if not data:
+    def compare_face(self, unknown_face_meta, tolerance=0.32, min_confidence=0.6):
+        try:
+            if not self._cached_users:
                 return None
 
-            best_match = None
-            best_distance = 1.0  # 初始设为最大距离
+            # 归一化未知特征
+            unknown_meta = np.array(unknown_face_meta, dtype=np.float32)
+            norm = np.linalg.norm(unknown_meta)
+            if norm == 0:
+                return None  # 无效输入
+            unknown_meta_normalized = unknown_meta / norm
 
-            for name, user_data in data.items():
-                distance = face_recognition.face_distance(
-                    [user_data['meta']],
-                    unknown_face_meta
-                )[0]
+            # 批量提取已知特征
+            known_metas = [user['meta'] for user in self._cached_users]
+            distances = face_recognition.face_distance(known_metas, unknown_meta_normalized)
 
-                if distance < best_distance and distance < tolerance:
-                    best_distance = distance
-                    best_match = (name, user_data['uid'], distance)
+            # 找到最佳匹配
+            min_index = np.argmin(distances)
+            best_distance = distances[min_index]
+            best_user = self._cached_users[min_index]
 
-            # 添加置信度检查
-            if best_match and (1 - best_distance) >= min_confidence:
-                return best_match[0]  # 返回匹配的用户名
+            # 计算置信度并检查阈值
+            confidence = 1 - best_distance
+            if best_distance <= tolerance and confidence >= min_confidence:
+                return best_user['name']
             return None
 
         except Exception as _:
+            # 实际应用中应记录日志
             del _
             return None
 
@@ -140,6 +157,7 @@ class FaceDetect:
                     console.print('在照片中未检测到人脸,请重试...')
                 else:
                     console.print(f'新增用户:{name}。')
+                    self._cached_users = self._preprocess_data()
             else:
                 detect = True if len(kwargs) == 1 else False
                 while True:

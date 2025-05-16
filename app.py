@@ -26,8 +26,8 @@ class WebFaceDetect(FaceDetect):
         # 加载中文字体
         try:
             self.font = ImageFont.truetype('simhei.ttf', 24)
-        except Exception as e:
-            del e
+        except Exception as _:
+            del _
             # 如果找不到字体，使用默认字体（可能不支持中文）
             self.font = ImageFont.load_default()
 
