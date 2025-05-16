@@ -115,10 +115,10 @@ class FaceDetect:
             photo_path = kwargs.get('photo_path')
             if photo_path:
                 face_meta = self.__get_face_meta(
-                    name=kwargs.get('name'),
-                    age=kwargs.get('age'),
-                    gender=kwargs.get('gender'),
-                    uid=kwargs.get('uid'),
+                    name=name,
+                    age=age,
+                    gender=gender,
+                    uid=uid,
                     detect=False,
                     photo_path=process_image(photo_path, self.folder)
                 )
