@@ -4,5 +4,6 @@ __pycache__/
 venv/
 test*
 photos/
+static/
 # ignore files
 *.json

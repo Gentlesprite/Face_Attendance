@@ -1,6 +1,10 @@
 dlib
-rich
-numpy
-opencv-python
+rich~=14.0.0
+flask~=3.1.1
+numpy~=2.2.5
+opencv-python~=4.11.0.86
 face-recognition
-
+pillow~=11.2.1
+pyttsx3~=2.98
+pypinyin~=0.54.0
+Werkzeug~=3.1.3
