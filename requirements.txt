@@ -1,0 +1,6 @@
+dlib
+rich
+numpy
+opencv-python
+face-recognition
+

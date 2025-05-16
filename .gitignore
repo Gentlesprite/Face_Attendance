@@ -1,0 +1,8 @@
+# ignore folders
+.idea/
+__pycache__/
+venv/
+test*
+photos/
+# ignore files
+*.json
