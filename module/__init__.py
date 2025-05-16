@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from logging.handlers import RotatingFileHandler
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 LOG_TIME_FORMAT = '[%Y-%m-%d %H:%M:%S]'
 console = Console(log_path=False, log_time_format=LOG_TIME_FORMAT)
 SOFTWARE_SHORT_NAME = 'FRS'
