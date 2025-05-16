@@ -3,6 +3,7 @@
 # Software:PyCharm
 # Time:2025/5/15 23:57
 # File:face.py
+import os
 import numpy as np
 from typing import Union
 
@@ -46,7 +47,10 @@ class FaceDetect:
 
         if not face:
             log.warning('未检测到人脸!')
+            os.remove(photo_path)
             return None
+        if detect:
+            os.remove(photo_path)
 
         face_meta = face_recognition.face_encodings(photo, face)[0]
 
