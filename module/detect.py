@@ -68,24 +68,39 @@ class FaceDetect:
             )
         return face_meta
 
-    def compare_face(self, unknown_face_meta, tolerance=0.49) -> Union[str, None]:
+    def compare_face(self, unknown_face_meta, tolerance=0.4, min_confidence=0.6):
         try:
-            data: dict = {}
-            for i in self.jd.data:
-                if i.get(self.jd.FACE_META) is not None:
-                    data[i.get(self.jd.NAME)] = np.array(i.get(self.jd.FACE_META))
+            data = {}
+            for user in self.jd.data:
+                if user.get(self.jd.FACE_META):
+                    data[user[self.jd.NAME]] = {
+                        'meta': np.array(user[self.jd.FACE_META]),
+                        'uid': user.get(self.jd.UID)
+                    }
+
             if not data:
                 return None
-            for name, meta in data.items():
-                # 比较人脸特征，降低tolerance值提高严格度。
-                results = face_recognition.compare_faces([meta], unknown_face_meta, tolerance=tolerance)
-                if results[0]:
-                    # 添加距离检查
-                    face_distance = face_recognition.face_distance([meta], unknown_face_meta)[0]
-                    if face_distance < tolerance:
-                        return name
+
+            best_match = None
+            best_distance = 1.0  # 初始设为最大距离
+
+            for name, user_data in data.items():
+                distance = face_recognition.face_distance(
+                    [user_data['meta']],
+                    unknown_face_meta
+                )[0]
+
+                if distance < best_distance and distance < tolerance:
+                    best_distance = distance
+                    best_match = (name, user_data['uid'], distance)
+
+            # 添加置信度检查
+            if best_match and (1 - best_distance) >= min_confidence:
+                return best_match[0]  # 返回匹配的用户名
             return None
-        except (IndexError, TypeError):
+
+        except Exception as _:
+            del _
             return None
 
     def detect_face(self):
