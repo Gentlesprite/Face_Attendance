@@ -107,7 +107,6 @@ class FaceDetect:
 
         face_meta = self.__get_face_meta(detect=True)
         if face_meta is None:
-            log.warning('未检测到人脸,请重试。')
             return
 
         match_name = self.compare_face(face_meta)
