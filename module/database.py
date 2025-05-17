@@ -41,7 +41,7 @@ class JsonDatabase:
                 JsonDatabase.UID: uid,
                 JsonDatabase.PHOTO_PATH: photo_path,
                 JsonDatabase.FACE_META: face_meta,
-                JsonDatabase.CREATE_TIME: datetime.datetime.now().timestamp()
+                JsonDatabase.CREATE_TIME: datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             meta.append(new_worker)
             f.seek(0)

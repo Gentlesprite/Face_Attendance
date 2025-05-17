@@ -72,17 +72,8 @@ def add_face():
 
 @app.route('/workers', methods=['GET'])
 def workers():
-    for record in jd.data:
-        if 'create_time' in record:
-            record['formatted_time'] = datetime.datetime.fromtimestamp(record['create_time']).strftime(
-                '%Y-%m-%d %H:%M:%S')
-
     if request.args.get('export') == 'excel':
         df = pd.DataFrame(jd.data)
-
-        if JsonDatabase.CREATE_TIME in df.columns:
-            df[JsonDatabase.CREATE_TIME] = pd.to_datetime(df[JsonDatabase.CREATE_TIME], unit='s')
-
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, sheet_name='员工列表', index=False)
