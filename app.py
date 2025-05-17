@@ -91,7 +91,7 @@ def workers():
 if __name__ == '__main__':
     MYSQL_CONFIG = {
         'host': 'localhost',
-        'database': 'fa',
+        'database': 'face_attendance',
         'user': 'root',
         'password': '123'
     }

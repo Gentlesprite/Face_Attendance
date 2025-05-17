@@ -52,9 +52,19 @@ class FaceDetect:
             return None
         if detect:
             os.remove(photo_path)
+        try:
+            face_meta = face_recognition.face_encodings(photo, face)
+            if not face_meta:  # 如果没有检测到人脸
+                log.error("未检测到人脸特征")
+                return None
+            face_meta = face_meta[0]  # 取第一个检测到的人脸
+            if face_meta.size == 0:  # 检查是否为空数组
+                log.error("人脸特征数据无效")
+                return None
 
-        face_meta = face_recognition.face_encodings(photo, face)[0]
-
+        except (Exception, ValueError, IndexError) as e:
+            log.error(f'没有识别到人像。{e}')
+            return None
         if not detect:
             match_name = self.compare_face(face_meta)
             if match_name:
@@ -91,7 +101,7 @@ class FaceDetect:
                 })
         return users
 
-    def compare_face(self, unknown_face_meta, tolerance=0.31, min_confidence=0.6):
+    def compare_face(self, unknown_face_meta, tolerance=0.3, min_confidence=0.6):
         try:
             if not self._cached_users:
                 return None
@@ -156,10 +166,12 @@ class FaceDetect:
                     detect=False,
                     photo_path=process_image(photo_path, self.folder)
                 )
+
                 if face_meta is None:
                     console.print('在照片中未检测到人脸,请重试...')
                 else:
                     console.print(f'新增用户:{name}。')
+
                     self._cached_users = self._preprocess_data()
             else:
                 detect = True if len(kwargs) == 1 else False

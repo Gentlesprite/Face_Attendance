@@ -3,7 +3,6 @@
 # Software:PyCharm
 # Time:2025/5/15 23:22
 # File:database.py
-import os
 import json
 import datetime
 import mysql.connector
@@ -88,25 +87,24 @@ class MySQLDatabase:
             log.error(f"加载数据时出错: {e}")
             return []
 
-    def add(self, name: str, age: int, gender: str, uid: int, photo_path: str, face_meta: List[float]):
+    def add(self, name: str, age: int, gender: str, uid: int, photo_path: str, face_meta):
         """添加新用户"""
-        if not os.path.exists(photo_path):
-            raise FileNotFoundError(f"照片路径不存在: {photo_path}")
+        # 检查 face_meta 是否有效（不能直接用 if not face_meta:）
+        if face_meta.size == 0:  # 检查是否为空数组
+            raise ValueError("人脸特征数据无效")
 
-        if not face_meta or len(face_meta) == 0:
-            raise ValueError("未检测到人脸特征数据")
-
-        # 检查用户是否已存在
+        # 检查用户是否已存在（如果 find() 方法也涉及 face_meta 判断，同样要修改）
         if self.find(uid=uid):
             raise UserAlreadyExists(f"UID为{uid}的用户已存在")
 
+        # 转换为 JSON 字符串（确保 face_meta 是 NumPy 数组或 List[float]）
         try:
             face_meta_json = json.dumps(face_meta.tolist() if hasattr(face_meta, 'tolist') else face_meta)
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"无法序列化 face_meta: {e}")
-
+        except Exception as e:
+            log.error(e)
+        # 插入数据库
+        cursor = self.connection.cursor()
         try:
-            cursor = self.connection.cursor()
             cursor.execute(
                 "INSERT INTO users (name, age, gender, uid, photo_path, face_meta, create_time) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                 (name, age, gender, uid, photo_path, face_meta_json,
@@ -115,13 +113,12 @@ class MySQLDatabase:
             self.connection.commit()
             log.info(f"成功添加用户: {name}")
             self.load_data()  # 刷新缓存
-        except mysql.connector.Error as e:
+        except Exception as e:
             self.connection.rollback()
             log.error(f"数据库错误: {e}")
-            raise DatabaseError(f"数据库操作失败: {e}")
+            raise DatabaseError(f"添加用户失败: {e}")
         finally:
-            if cursor:
-                cursor.close()
+            cursor.close()
 
     def delete(self, uid: int) -> bool:
         """根据UID删除用户"""
