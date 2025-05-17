@@ -14,8 +14,8 @@ from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.datastructures.file_storage import FileStorage
 from flask import Flask, render_template, Response, request, url_for, redirect
 
-from module.web import WebFaceDetect
 from module.database import JsonDatabase
+from module.web_detect import WebFaceDetect
 
 app = Flask(__name__)
 
@@ -95,7 +95,6 @@ def workers():
             download_name='output.xlsx'
         )
 
-    # Display records in HTML
     return render_template('workers.html', records=jd.data)
 
 
