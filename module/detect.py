@@ -5,11 +5,9 @@
 # File:face.py
 import os
 import numpy as np
-from typing import Union
-
+from typing import Union, List, Dict, Any
 import cv2
-import face_recognition
-
+from insightface.app import FaceAnalysis
 from module import log, console
 from module.utils import process_image
 from module.database import MySQLDatabase
@@ -17,18 +15,27 @@ from module.errors import UserAlreadyExists
 
 
 class FaceDetect:
-    def __init__(self, database: MySQLDatabase, cap=cv2.VideoCapture(0), folder: str = 'photos'):
-        self.cap = cap
+    def __init__(self, database: MySQLDatabase, cap=None, folder: str = 'photos'):
+        self.cap = cap  # 不在这里初始化摄像头
         self.folder: str = folder
         self.db = database
+
+        # 初始化InsightFace应用
+        self.app = FaceAnalysis(
+            name='antelopev2',
+            root='./models',
+            allowed_modules=['detection', 'recognition', 'genderage'],
+            providers=['CPUExecutionProvider']
+        )
+        # 使用更小的检测尺寸
+        self.app.prepare(ctx_id=-1, det_size=(320, 320))  # ctx_id=-1表示强制使用CPU
         self._cached_users = self._preprocess_data()
 
-    def __take_photo(self) -> Union[str, None]:
+    def __take_photo(self):
         ret, frame = self.cap.read()
-        if not ret:
-            log.error('无法访问摄像头!')
-            return None
-
+        if not ret: return None
+        # 缩小图像尺寸
+        frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
         return process_image(frame, self.folder)
 
     def __get_face_meta(
@@ -38,52 +45,59 @@ class FaceDetect:
             uid: Union[int, None] = None,
             photo_path: Union[str, None] = None,
             detect: bool = False  # 为True时只方法将只充当检测功能。
-    ):
+    ) -> Union[Dict[str, Any], None]:
+
         photo_path = self.__take_photo() if not photo_path else photo_path
         if photo_path is None:
             return None
 
-        photo = face_recognition.load_image_file(photo_path)
-        face = face_recognition.face_locations(photo)
+        # 使用InsightFace进行人脸检测和特征提取
+        img = cv2.imread(photo_path)
+        if img is None:
+            log.error(f'无法读取图片: {photo_path}')
+            return None
 
-        if not face:
+        faces = self.app.get(img, max_num=1)
+
+        if not faces:
             log.warning('未检测到人脸!')
             os.remove(photo_path)
             return None
+
         if detect:
             os.remove(photo_path)
-        try:
-            face_meta = face_recognition.face_encodings(photo, face)
-            if not face_meta:  # 如果没有检测到人脸
-                log.error("未检测到人脸特征")
-                return None
-            face_meta = face_meta[0]  # 取第一个检测到的人脸
-            if face_meta.size == 0:  # 检查是否为空数组
-                log.error("人脸特征数据无效")
-                return None
 
-        except (Exception, ValueError, IndexError) as e:
-            log.error(f'没有识别到人像。{e}')
-            return None
+        # 取第一个检测到的人脸
+        face = faces[0]
+
+        # 构建返回的元数据
+        face_meta = {
+            'embedding': face.embedding,  # 人脸特征向量
+            'bbox': face.bbox,  # 人脸框坐标
+            'landmark': face.landmark,  # 人脸关键点
+            'det_score': face.det_score,  # 检测分数
+            'gender': face.gender,  # 预测性别
+            'age': face.age  # 预测年龄
+        }
+
         if not detect:
-            match_name = self.compare_face(face_meta)
+            match_name = self.compare_face(face.embedding)
             if match_name:
                 raise UserAlreadyExists(f'用户"{match_name}"已注册,请勿重复添加。')
             try:
                 self.db.add(
                     name=name,
-                    age=age,
-                    gender=gender,
+                    age=age if age is not None else face.age,
+                    gender=gender if gender is not None else ('男' if face.gender == 1 else '女'),
                     uid=uid,
                     photo_path=photo_path,
-                    face_meta=face_meta
+                    face_meta=face.embedding.tolist()  # 转换为列表存储
                 )
-                self.db.load_data()
             except Exception as e:
-                log.error(e)
+                raise e
         return face_meta
 
-    def _preprocess_data(self):
+    def _preprocess_data(self) -> List[Dict[str, Any]]:
         users = []
         for user in self.db.data:
             face_meta = user.get(self.db.FACE_META)
@@ -101,7 +115,8 @@ class FaceDetect:
                 })
         return users
 
-    def compare_face(self, unknown_face_meta, tolerance=0.3, min_confidence=0.6):
+    def compare_face(self, unknown_face_meta: np.ndarray, tolerance: float = 0.6, min_confidence: float = 0.6) -> Union[
+        str, None]:
         try:
             if not self._cached_users:
                 return None
@@ -115,31 +130,35 @@ class FaceDetect:
 
             # 批量提取已知特征
             known_metas = [user['meta'] for user in self._cached_users]
-            distances = face_recognition.face_distance(known_metas, unknown_meta_normalized)
+
+            # 计算余弦相似度
+            similarities = []
+            for known_meta in known_metas:
+                similarity = np.dot(unknown_meta_normalized, known_meta)
+                similarities.append(similarity)
+
+            similarities = np.array(similarities)
 
             # 找到最佳匹配
-            min_index = np.argmin(distances)
-            best_distance = distances[min_index]
-            best_user = self._cached_users[min_index]
+            max_index = np.argmax(similarities)
+            best_similarity = similarities[max_index]
+            best_user = self._cached_users[max_index]
 
-            # 计算置信度并检查阈值
-            confidence = 1 - best_distance
-            if best_distance <= tolerance and confidence >= min_confidence:
+            # 检查阈值
+            if best_similarity >= tolerance and best_similarity >= min_confidence:
                 return best_user['name']
             return None
 
-        except Exception as _:
-            # 实际应用中应记录日志
-            del _
+        except Exception as e:
+            log.error(f'人脸比对出错: {e}')
             return None
 
-    def detect_face(self):
-
+    def detect_face(self) -> Union[str, None]:
         face_meta = self.__get_face_meta(detect=True)
         if face_meta is None:
-            return
+            return None
 
-        match_name = self.compare_face(face_meta)
+        match_name = self.compare_face(face_meta['embedding'])
         if match_name:
             console.log(f'识别结果:欢迎回来, {match_name}!')
             return match_name
@@ -147,16 +166,21 @@ class FaceDetect:
             console.log('未识别到注册用户!')
             return None
 
-    def add_face(
-            self,
-            **kwargs
-    ):
+    def add_face(self, **kwargs) -> None:
         try:
             name = kwargs.get('name') or console.input('名字:')
-            age = int(kwargs.get('age') or console.input('年龄:'))
-            gender = kwargs.get('gender') or console.input('性别:')
-            uid = int(kwargs.get('uid') or console.input('uid:'))
+            age = kwargs.get('age')
+            if age is None:
+                age_input = console.input('年龄(留空使用自动检测):')
+                age = int(age_input) if age_input else None
+            gender = kwargs.get('gender')
+            if gender is None:
+                gender = console.input('性别(留空使用自动检测):')
+            uid = kwargs.get('uid')
+            if uid is None:
+                uid = int(console.input('uid:'))
             photo_path = kwargs.get('photo_path')
+
             if photo_path:
                 face_meta = self.__get_face_meta(
                     name=name,
@@ -186,7 +210,9 @@ class FaceDetect:
                         )
                         if face_meta is None:
                             console.print('未检测到人脸,请重试...')
-                        match_name: Union[None, str] = self.compare_face(face_meta)
+                            continue
+
+                        match_name = self.compare_face(face_meta['embedding'])
                         if match_name:
                             console.log(f'欢迎回来,识别结果:{match_name}!')
                             break
@@ -195,4 +221,4 @@ class FaceDetect:
                         break
                 self.detect_face()
         except Exception as e:
-            log.error(e)
+            log.exception(e)

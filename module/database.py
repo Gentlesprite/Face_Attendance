@@ -89,9 +89,6 @@ class MySQLDatabase:
 
     def add(self, name: str, age: int, gender: str, uid: int, photo_path: str, face_meta):
         """添加新用户"""
-        # 检查 face_meta 是否有效（不能直接用 if not face_meta:）
-        if face_meta.size == 0:  # 检查是否为空数组
-            raise ValueError("人脸特征数据无效")
 
         # 检查用户是否已存在（如果 find() 方法也涉及 face_meta 判断，同样要修改）
         if self.find(uid=uid):
@@ -119,7 +116,7 @@ class MySQLDatabase:
             raise DatabaseError(f"添加用户失败: {e}")
         finally:
             cursor.close()
-
+            self.load_data()
     def delete(self, uid: int) -> bool:
         """根据UID删除用户"""
         delete_query = "DELETE FROM users WHERE uid = %s"
