@@ -6,9 +6,14 @@
 import os
 import json
 import datetime
+import mysql.connector
+from mysql.connector import Error, DatabaseError
+from typing import List, Dict, Any, Optional
+from module import log
+from module.errors import UserAlreadyExists
 
 
-class JsonDatabase:
+class MySQLDatabase:
     NAME = 'name'
     AGE = 'age'
     GENDER = 'gender'
@@ -17,43 +22,180 @@ class JsonDatabase:
     FACE_META = 'face_meta'
     CREATE_TIME = 'create_time'
 
-    def __init__(self, path: str):
-        self.path = path
+    def __init__(self, host: str, database: str, user: str, password: str):
+        self.host = host
+        self.database = database
+        self.user = user
+        self.password = password
+        self.connection = None
+        self.connect()
+        self._create_table()
         self.data = None
         self.load_data()
 
-    def load_data(self):
-        if not os.path.exists(self.path):
-            with open(self.path, 'w') as f:
-                json.dump([], f)
-        with open(self.path, 'r') as f:
-            self.data: dict = json.load(f)
+    def connect(self):
+        """连接到MySQL数据库"""
+        try:
+            self.connection = mysql.connector.connect(
+                host=self.host,
+                database=self.database,
+                user=self.user,
+                password=self.password
+            )
+            if self.connection.is_connected():
+                log.info('成功连接到MySQL数据库。')
+        except Error as e:
+            log.error(f"连接MySQL数据库时出错: {e}")
+            raise
 
-    def add(self, name: str, age: int, gender: str, uid: int, photo_path, face_meta):
-        with open(self.path, 'r+') as f:
-            meta = json.load(f)
-            if face_meta is not None:
-                face_meta = face_meta.tolist()
-            new_worker = {
-                JsonDatabase.NAME: name,
-                JsonDatabase.AGE: age,
-                JsonDatabase.GENDER: gender,
-                JsonDatabase.UID: uid,
-                JsonDatabase.PHOTO_PATH: photo_path,
-                JsonDatabase.FACE_META: face_meta,
-                JsonDatabase.CREATE_TIME: datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            meta.append(new_worker)
-            f.seek(0)
-            json.dump(meta, f, indent=2)
+    def _create_table(self):
+        """创建用户表（如果不存在）"""
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            age INT NOT NULL,
+            gender VARCHAR(50) NOT NULL,
+            uid INT UNIQUE NOT NULL,
+            photo_path VARCHAR(255) NOT NULL,
+            face_meta JSON NOT NULL,
+            create_time DATETIME NOT NULL
+        )
+        """
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(create_table_query)
+            self.connection.commit()
+        except Error as e:
+            log.error(f"创建表时出错: {e}")
+            raise
 
-    def delete(self, name):
-        ...
+    def load_data(self) -> List[Dict[str, Any]]:
+        """从数据库加载所有用户数据"""
+        query = "SELECT * FROM users"
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute(query)
+            result = cursor.fetchall()
 
-    def find(self, *args):
-        for i in args:
-            for j in self.data:
-                return j.get(i)
+            # 将JSON格式的face_meta转换为列表
+            for user in result:
+                if user.get('face_meta'):
+                    user['face_meta'] = json.loads(user['face_meta'])
 
-    def change(self):
-        ...
+            self.data = result
+        except Error as e:
+            log.error(f"加载数据时出错: {e}")
+            return []
+
+    def add(self, name: str, age: int, gender: str, uid: int, photo_path: str, face_meta: List[float]):
+        """添加新用户"""
+        if not os.path.exists(photo_path):
+            raise FileNotFoundError(f"照片路径不存在: {photo_path}")
+
+        if not face_meta or len(face_meta) == 0:
+            raise ValueError("未检测到人脸特征数据")
+
+        # 检查用户是否已存在
+        if self.find(uid=uid):
+            raise UserAlreadyExists(f"UID为{uid}的用户已存在")
+
+        try:
+            face_meta_json = json.dumps(face_meta.tolist() if hasattr(face_meta, 'tolist') else face_meta)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"无法序列化 face_meta: {e}")
+
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(
+                "INSERT INTO users (name, age, gender, uid, photo_path, face_meta, create_time) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (name, age, gender, uid, photo_path, face_meta_json,
+                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            )
+            self.connection.commit()
+            log.info(f"成功添加用户: {name}")
+            self.load_data()  # 刷新缓存
+        except mysql.connector.Error as e:
+            self.connection.rollback()
+            log.error(f"数据库错误: {e}")
+            raise DatabaseError(f"数据库操作失败: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+
+    def delete(self, uid: int) -> bool:
+        """根据UID删除用户"""
+        delete_query = "DELETE FROM users WHERE uid = %s"
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(delete_query, (uid,))
+            self.connection.commit()
+            affected_rows = cursor.rowcount
+            if affected_rows > 0:
+                self.load_data()  # 刷新缓存数据
+                return True
+            return False
+        except Error as e:
+            log.error(f"删除用户时出错: {e}")
+            return False
+
+    def find(self, **kwargs) -> Optional[Dict[str, Any]]:
+        """根据条件查找用户"""
+        if not kwargs:
+            return None
+
+        conditions = []
+        values = []
+        for key, value in kwargs.items():
+            conditions.append(f"{key} = %s")
+            values.append(value)
+
+        query = f"SELECT * FROM users WHERE {' AND '.join(conditions)} LIMIT 1"
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute(query, tuple(values))
+            result = cursor.fetchone()
+            if result and 'face_meta' in result:
+                result['face_meta'] = json.loads(result['face_meta'])
+            return result
+        except Error as e:
+            log.error(f"查找用户时出错: {e}")
+            return None
+
+    def update(self, uid: int, **kwargs) -> bool:
+        """更新用户信息"""
+        if not kwargs:
+            return False
+
+        set_clause = []
+        values = []
+        for key, value in kwargs.items():
+            if key == 'face_meta':
+                value = json.dumps(value.tolist() if hasattr(value, 'tolist') else value)
+            set_clause.append(f"{key} = %s")
+            values.append(value)
+
+        values.append(uid)  # 添加WHERE条件的值
+
+        query = f"UPDATE users SET {', '.join(set_clause)} WHERE uid = %s"
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(query, tuple(values))
+            self.connection.commit()
+            affected_rows = cursor.rowcount
+            if affected_rows > 0:
+                self.load_data()  # 刷新缓存数据
+                return True
+            return False
+        except Error as e:
+            log.error(f"更新用户时出错: {e}")
+            return False
+
+    def close(self):
+        """关闭数据库连接"""
+        if self.connection and self.connection.is_connected():
+            self.connection.close()
+            log.info('MySQL连接已关闭。')
+
+    def __del__(self):
+        self.close()

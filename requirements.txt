@@ -4,6 +4,7 @@ flask~=3.1.1
 numpy~=2.2.5
 opencv-python~=4.11.0.86
 face-recognition
+mysql-connector-python
 pillow~=11.2.1
 pyttsx3~=2.98
 pypinyin~=0.54.0

@@ -13,14 +13,14 @@ from PIL import Image, ImageDraw, ImageFont
 
 from module import log, DIRECTORY_NAME
 from module.detect import FaceDetect
-from module.database import JsonDatabase
+from module.database import MySQLDatabase
 
 
 class WebFaceDetect(FaceDetect):
     TEMPLATES_FOLDER = os.path.join(DIRECTORY_NAME, 'templates')
     UPLOAD_FOLDER = os.path.join(DIRECTORY_NAME, 'static', 'uploads')
 
-    def __init__(self, database: JsonDatabase):
+    def __init__(self, database: MySQLDatabase):
         super().__init__(
             database=database,
             cap=None,

@@ -47,3 +47,4 @@ logging.basicConfig(
     ]
 )
 log = logging.getLogger('rich')
+log.level = logging.DEBUG

@@ -12,15 +12,15 @@ import face_recognition
 
 from module import log, console
 from module.utils import process_image
-from module.database import JsonDatabase
+from module.database import MySQLDatabase
 from module.errors import UserAlreadyExists
 
 
 class FaceDetect:
-    def __init__(self, database: JsonDatabase, cap=cv2.VideoCapture(0), folder: str = 'photos'):
+    def __init__(self, database: MySQLDatabase, cap=cv2.VideoCapture(0), folder: str = 'photos'):
         self.cap = cap
         self.folder: str = folder
-        self.jd = database
+        self.db = database
         self._cached_users = self._preprocess_data()
 
     def __take_photo(self) -> Union[str, None]:
@@ -59,21 +59,24 @@ class FaceDetect:
             match_name = self.compare_face(face_meta)
             if match_name:
                 raise UserAlreadyExists(f'用户"{match_name}"已注册,请勿重复添加。')
-            self.jd.add(
-                name=name,
-                age=age,
-                gender=gender,
-                uid=uid,
-                photo_path=photo_path,
-                face_meta=face_meta
-            )
-            self.jd.load_data()
+            try:
+                self.db.add(
+                    name=name,
+                    age=age,
+                    gender=gender,
+                    uid=uid,
+                    photo_path=photo_path,
+                    face_meta=face_meta
+                )
+                self.db.load_data()
+            except Exception as e:
+                log.error(e)
         return face_meta
 
     def _preprocess_data(self):
         users = []
-        for user in self.jd.data:
-            face_meta = user.get(self.jd.FACE_META)
+        for user in self.db.data:
+            face_meta = user.get(self.db.FACE_META)
             if face_meta:
                 # 转换为numpy数组并归一化
                 meta_array = np.array(face_meta, dtype=np.float32)
@@ -82,13 +85,13 @@ class FaceDetect:
                     continue  # 跳过无效特征
                 meta_normalized = meta_array / norm
                 users.append({
-                    'name': user[self.jd.NAME],
-                    'uid': user.get(self.jd.UID),
+                    'name': user[self.db.NAME],
+                    'uid': user.get(self.db.UID),
                     'meta': meta_normalized
                 })
         return users
 
-    def compare_face(self, unknown_face_meta, tolerance=0.32, min_confidence=0.6):
+    def compare_face(self, unknown_face_meta, tolerance=0.31, min_confidence=0.6):
         try:
             if not self._cached_users:
                 return None

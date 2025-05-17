@@ -4,7 +4,6 @@
 # Time:2025/5/16 21:48
 # File:app.py
 import os
-import datetime
 
 import pandas as pd
 from io import BytesIO
@@ -14,7 +13,7 @@ from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.datastructures.file_storage import FileStorage
 from flask import Flask, render_template, Response, request, url_for, redirect
 
-from module.database import JsonDatabase
+from module.database import MySQLDatabase
 from module.web_detect import WebFaceDetect
 
 app = Flask(__name__)
@@ -73,7 +72,7 @@ def add_face():
 @app.route('/workers', methods=['GET'])
 def workers():
     if request.args.get('export') == 'excel':
-        df = pd.DataFrame(jd.data)
+        df = pd.DataFrame(db.data)
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, sheet_name='员工列表', index=False)
@@ -86,14 +85,19 @@ def workers():
             download_name='output.xlsx'
         )
 
-    return render_template('workers.html', records=jd.data)
+    return render_template('workers.html', records=db.data)
 
 
 if __name__ == '__main__':
+    MYSQL_CONFIG = {
+        'host': 'localhost',
+        'database': 'fa',
+        'user': 'root',
+        'password': '123'
+    }
     # 初始化数据库和检测器
-    jd = JsonDatabase('database.json')
-    web_detector = WebFaceDetect(jd)
+    db = MySQLDatabase(**MYSQL_CONFIG)
+    web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
     app.config['UPLOAD_FOLDER'] = WebFaceDetect.UPLOAD_FOLDER
-
     app.run(host='0.0.0.0', port=5000, debug=True)
