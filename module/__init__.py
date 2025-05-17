@@ -4,7 +4,9 @@
 # Time:2025/5/15 23:15
 # File:__init__.py
 import os
+import sys
 import logging
+
 from rich.console import Console
 from rich.logging import RichHandler
 from logging.handlers import RotatingFileHandler
@@ -13,6 +15,7 @@ __version__ = '1.0.1'
 LOG_TIME_FORMAT = '[%Y-%m-%d %H:%M:%S]'
 console = Console(log_path=False, log_time_format=LOG_TIME_FORMAT)
 SOFTWARE_SHORT_NAME = 'FRS'
+DIRECTORY_NAME: str = os.path.dirname(os.path.abspath(sys.argv[0]))  # 获取软件工作绝对目录。
 APPDATA_PATH = os.path.join(
     os.environ.get('APPDATA') or os.environ.get('XDG_CONFIG_HOME', os.path.expanduser('~/.config')),
     SOFTWARE_SHORT_NAME)
