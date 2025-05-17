@@ -4,13 +4,18 @@
 # Time:2025/5/16 21:48
 # File:app.py
 import os
+import sys
+
 import cv2
 import numpy as np
 import face_recognition
 from PIL import Image, ImageDraw, ImageFont
 from werkzeug.utils import secure_filename
+from werkzeug.datastructures import ImmutableMultiDict
+from werkzeug.datastructures.file_storage import FileStorage
 from flask import Flask, render_template, Response, request, url_for, redirect
 
+from module import log
 from module.detect import FaceDetect
 from module.database import JsonDatabase
 
@@ -26,8 +31,8 @@ class WebFaceDetect(FaceDetect):
         # 加载中文字体
         try:
             self.font = ImageFont.truetype('simhei.ttf', 24)
-        except Exception as _:
-            del _
+        except Exception as e:
+            log.error(e)
             # 如果找不到字体，使用默认字体（可能不支持中文）
             self.font = ImageFont.load_default()
 
@@ -45,7 +50,7 @@ class WebFaceDetect(FaceDetect):
         """生成带有面部检测框和识别结果的视频帧"""
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
-            raise RuntimeError("无法访问摄像头!")
+            log.error('无法访问摄像头!')
 
         try:
             while True:
@@ -89,13 +94,11 @@ class WebFaceDetect(FaceDetect):
 
 @app.route('/')
 def index():
-    """视频流主页"""
-    return render_template('index.html')
+    return render_template(os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'templates', 'index.html'))
 
 
 @app.route('/video')
 def video():
-    """视频流路由"""
     return Response(
         web_detector.gen_frames(),
         mimetype='multipart/x-mixed-replace; boundary=frame'
@@ -105,12 +108,6 @@ def video():
 @app.route('/add_face', methods=['GET', 'POST'])
 def add_face():
     # 配置文件上传
-    os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
-    app.config['UPLOAD_FOLDER'] = WebFaceDetect.UPLOAD_FOLDER
-
-    def allowed_file(f):
-        return '.' in f and \
-            f.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg'}
 
     if request.method == 'POST':
         # 获取表单数据
@@ -122,35 +119,33 @@ def add_face():
         # 处理文件上传
         if 'photo' not in request.files:
             return redirect(request.url)
-
-        file = request.files['photo']
-        if file.filename == '':
+        file: ImmutableMultiDict = request.files
+        photo: FileStorage = file.get('photo')
+        file_name: str = photo.filename
+        if file_name == '':
             return redirect(request.url)
 
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            photo_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(photo_path)
+        if photo and '.' in file_name and file_name.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg'}:
+            photo_path = os.path.join(app.config.get('UPLOAD_FOLDER'), secure_filename(file_name))
+            photo.save(photo_path)
 
-            try:
-                # 调用人脸添加方法
-                web_detector.add_face(
-                    name=name,
-                    age=age,
-                    gender=gender,
-                    uid=uid,
-                    photo_path=photo_path
-                )
-                return redirect(url_for('index'))
-            except Exception as e:
-                return f"添加失败: {str(e)}"
+            web_detector.add_face(
+                name=name,
+                age=age,
+                gender=gender,
+                uid=uid,
+                photo_path=photo_path
+            )
+            return redirect(url_for('index'))
 
     # GET请求返回表单页面
-    return render_template('add_face.html')
+    return render_template(os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), 'templates', 'add_face.html'))
 
 
 if __name__ == '__main__':
     # 初始化数据库和检测器
     jd = JsonDatabase('database.json')
     web_detector = WebFaceDetect(jd)
+    os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
+    app.config['UPLOAD_FOLDER'] = WebFaceDetect.UPLOAD_FOLDER
     app.run(host='0.0.0.0', port=5000, debug=True)

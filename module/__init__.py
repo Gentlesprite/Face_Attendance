@@ -20,6 +20,7 @@ LOG_PATH = os.path.join(APPDATA_PATH, f'{SOFTWARE_SHORT_NAME}_LOG.log')
 os.makedirs(APPDATA_PATH, exist_ok=True)
 MAX_LOG_SIZE = 10 * 1024 * 1024  # 10 MB
 BACKUP_COUNT = 0  # 不保留日志文件
+
 # 配置日志文件处理器（支持日志轮换）
 file_handler = RotatingFileHandler(
     filename=LOG_PATH,
