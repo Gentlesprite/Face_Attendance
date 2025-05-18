@@ -26,9 +26,26 @@ class WebFaceDetect(FaceDetect):
             folder=os.path.join(WebFaceDetect.TEMPLATES_FOLDER, 'static', 'photos')
         )
         try:
-            self.font = ImageFont.truetype('simhei.ttf', 24)
+            # 尝试加载常见的中文字体
+            font_paths = [
+                '/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc',  # 文泉驿正黑
+                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',  # Noto字体
+                'simhei.ttf'
+            ]
+
+            for font_path in font_paths:
+                try:
+                    self.font = ImageFont.truetype(font_path, 24)
+                    break
+                except:
+                    continue
+            else:
+                # 所有尝试都失败后使用默认字体
+                self.font = ImageFont.load_default()
+                log.warning("无法加载中文字体，将使用默认字体。")
         except Exception as e:
-            log.error(e)
+            log.error(f"字体加载错误: {e}")
             self.font = ImageFont.load_default()
 
     def show_chinese_text(self, img, text, pos, color):
