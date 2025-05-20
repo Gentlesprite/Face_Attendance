@@ -20,4 +20,4 @@ def process_image(path, folder) -> str:
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     photo_path = f'{folder}/{timestamp}.jpg'
     cv2.imwrite(photo_path, rgb_frame)
-    return photo_path
+    return os.path.normpath(photo_path)

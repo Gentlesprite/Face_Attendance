@@ -241,7 +241,7 @@ class MySQLDatabase:
     def is_admin(self, username: str) -> bool:
         """检查用户是否为管理员"""
         user = self.find(username=username)
-        return user and user.get('user_type', 0) == 1
+        return user and user.get('user_type', 1) == 0
 
     def close(self):
         """关闭数据库连接"""

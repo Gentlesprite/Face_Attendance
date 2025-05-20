@@ -44,9 +44,9 @@ class WebFaceDetect(FaceDetect):
             else:
                 # 所有尝试都失败后使用默认字体
                 self.font = ImageFont.load_default()
-                log.warning("无法加载中文字体，将使用默认字体。")
+                log.warning('无法加载中文字体，将使用默认字体。')
         except Exception as e:
-            log.error(f"字体加载错误: {e}")
+            log.error(f'字体加载错误,原因:"{e}"')
             self.font = ImageFont.load_default()
 
     def show_chinese_text(self, img, text, pos, color):

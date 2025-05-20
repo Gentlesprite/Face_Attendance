@@ -77,6 +77,9 @@ def add_face():
 def workers():
     if request.args.get('export') == 'excel':
         df = pd.DataFrame(db.data)
+        df.pop('photo_path')
+        df.pop('face_meta')
+
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, sheet_name='员工列表', index=False)

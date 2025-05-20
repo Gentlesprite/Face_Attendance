@@ -33,9 +33,9 @@
         <thead>
             <tr>
                 <th>姓名</th>
-                <th>年龄</th>
                 <th>性别</th>
                 <th>工号</th>
+                <th>用户类型</th>
                 <th>创建日期</th>
             </tr>
         </thead>
@@ -43,9 +43,9 @@
             {% for record in records %}
             <tr>
                 <td>{{ record.name }}</td>
-                <td>{{ record.age }}</td>
                 <td>{{ record.gender }}</td>
-                <td>{{ record.uid }}</td>
+                <td>{{ record.username }}</td>
+                <td>{{ record.user_type }}</td>
                 <td>{{ record.create_time }}</td>
             </tr>
             {% endfor %}

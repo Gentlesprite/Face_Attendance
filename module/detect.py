@@ -157,11 +157,9 @@ class FaceDetect:
             user_type: Union[int, str] = None,
             photo_path: Union[str, None] = None
     ) -> dict:
-        if user_type is None:
-            user_type_input = 0
-            user_type = int(user_type_input) if user_type_input else 0
+        user_type: int = 1 if user_type is None else 0
         photo_path: str = self.take_photo() if not photo_path else process_image(photo_path, self.folder)
-        meta = self.__get_face_meta(photo_path)
+        meta: dict = self.__get_face_meta(photo_path)
         face: Union[Face, None] = meta.get('face')
         if face and self.compare_face(face.embedding):
             face = None
