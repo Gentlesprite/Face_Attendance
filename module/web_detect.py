@@ -38,7 +38,8 @@ class WebFaceDetect(FaceDetect):
                 try:
                     self.font = ImageFont.truetype(font_path, 24)
                     break
-                except:
+                except Exception as e:
+                    log.error(e)
                     continue
             else:
                 # 所有尝试都失败后使用默认字体
@@ -86,7 +87,7 @@ class WebFaceDetect(FaceDetect):
 
                     if match_name:
                         # 使用支持中文的方法显示识别出的名字
-                        text = f'识别: {match_name}'
+                        text = f'识别:{match_name}'
                         frame = self.show_chinese_text(frame, text, (bbox[0], bbox[3] + 25), (0, 255, 0))
                     else:
                         # 显示未识别

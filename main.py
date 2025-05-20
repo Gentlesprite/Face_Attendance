@@ -18,5 +18,5 @@ if __name__ == '__main__':
     db = MySQLDatabase(**MYSQL_CONFIG)
     fd = FaceDetect(db, cap=cv2.VideoCapture(0))
     while True:
-        if fd.detect_face():  # 检测人脸
-            exit(0)
+        result = fd.detect_face(fd.take_photo())
+        exit(0) if result else None

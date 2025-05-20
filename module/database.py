@@ -9,7 +9,7 @@ import mysql.connector
 from mysql.connector import Error, DatabaseError
 from typing import List, Dict, Any, Optional, Union
 from module import log
-from module.errors import UserAlreadyExists, FaceNotDetected
+from module.errors import FaceNotDetected
 import numpy as np
 import hashlib
 
@@ -35,105 +35,17 @@ class MySQLDatabase:
         self.data = None
         self.load_data()
 
-    def connect(self):
-        """连接到MySQL数据库"""
-        try:
-            self.connection = mysql.connector.connect(
-                host=self.host,
-                database=self.database,
-                user=self.user,
-                password=self.password
-            )
-            if self.connection.is_connected():
-                log.info('成功连接到MySQL数据库。')
-        except Error as e:
-            log.error(f"连接MySQL数据库时出错:{e}")
-            raise
-
-    def _create_table(self):
-        """创建用户表(如果不存在)"""
-        try:
-            cursor = self.connection.cursor()
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                gender VARCHAR(50) NOT NULL,
-                username VARCHAR(255) UNIQUE NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                user_type TINYINT DEFAULT 0 NOT NULL,  -- 0=普通用户, 1=管理员
-                photo_path VARCHAR(255) NOT NULL,
-                face_meta JSON NOT NULL,
-                create_time DATETIME NOT NULL
-            )
-            """)
-            self.connection.commit()
-        except Error as e:
-            log.error(f"创建表时出错: {e}")
-            raise
-
-    def load_data(self) -> List[Dict[str, Any]]:
-        """从数据库加载所有用户数据"""
-        try:
-            cursor = self.connection.cursor(dictionary=True)
-            cursor.execute('SELECT * FROM users')
-            result = cursor.fetchall()
-
-            # 将JSON格式的face_meta转换为列表
-            for user in result:
-                if user.get('face_meta'):
-                    user['face_meta'] = json.loads(user['face_meta'])
-
-            self.data = result
-            return result
-        except Error as e:
-            log.error(f"加载数据时出错: {e}")
-            return []
-
-    @staticmethod
-    def _hash_password(password: str) -> str:
-        """使用SHA256哈希密码"""
-        return hashlib.sha256(password.encode()).hexdigest()
-
-    def generate_username(self) -> str:
-        """生成自动递增的用户名，格式为年月日+ID（如2024051601）"""
-        today = datetime.datetime.now().strftime("%Y%m%d")
-        cursor = self.connection.cursor()
-
-        try:
-            # 查找今天最大的ID
-            cursor.execute(
-                "SELECT MAX(CAST(SUBSTRING(username, 9) AS UNSIGNED)) as max_id "
-                "FROM users WHERE username LIKE %s",
-                (f"{today}%",)
-            )
-            result = cursor.fetchone()
-            max_id = result[0] if result[0] is not None else 0
-
-            # 生成新ID
-            new_id = max_id + 1
-            return f"{today}{new_id:02d}"  # 格式化为两位数，如01, 02等
-        except Error as e:
-            log.error(f"生成用户名时出错: {e}")
-            raise
-        finally:
-            cursor.close()
-
     def add(
             self,
             name: str,
             gender: str,
             username: str,
-            password: str,
+            password: Union[str, int],
             photo_path: str,
             face_meta: Union[np.ndarray, List[float]],
             user_type: int = 0  # 默认为普通用户
     ):
         """添加新用户（用户名自动生成）"""
-
-
-        # 检查用户是否已存在（通过人脸特征）
-        # 注意：这里不再检查username，因为它是自动生成的唯一值
 
         # 哈希密码
         hashed_password = self._hash_password(str(password))
@@ -204,7 +116,7 @@ class MySQLDatabase:
             log.error(f"查找用户时出错:{e}")
             return None
 
-    def update(self, username: str, **kwargs) -> bool:
+    def change(self, username: str, **kwargs) -> bool:
         """更新用户信息"""
         if not kwargs:
             return False
@@ -234,6 +146,90 @@ class MySQLDatabase:
             log.error(f'更新用户时出错:{e}')
             return False
 
+    def connect(self):
+        """连接到MySQL数据库"""
+        try:
+            self.connection = mysql.connector.connect(
+                host=self.host,
+                database=self.database,
+                user=self.user,
+                password=self.password
+            )
+            if self.connection.is_connected():
+                log.info('成功连接到MySQL数据库。')
+        except Error as e:
+            log.error(f'连接MySQL数据库时出错,原因:"{e}"')
+            raise
+
+    def _create_table(self):
+        """创建用户表(如果不存在)"""
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                gender VARCHAR(50) NOT NULL,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                user_type TINYINT DEFAULT 0 NOT NULL,  -- 0=普通用户, 1=管理员
+                photo_path VARCHAR(255) NOT NULL,
+                face_meta JSON NOT NULL,
+                create_time DATETIME NOT NULL
+            )
+            ''')
+            self.connection.commit()
+        except Error as e:
+            log.error(f'创建表时出错,原因:"{e}"')
+            raise
+
+    def load_data(self) -> List[Dict[str, Any]]:
+        """从数据库加载所有用户数据"""
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            cursor.execute('SELECT * FROM users')
+            result = cursor.fetchall()
+
+            # 将JSON格式的face_meta转换为列表
+            for user in result:
+                if user.get('face_meta'):
+                    user['face_meta'] = json.loads(user['face_meta'])
+
+            self.data = result
+            return result
+        except Error as e:
+            log.error(f'加载数据时出错,原因:"{e}"')
+            return []
+
+    @staticmethod
+    def _hash_password(password: str) -> str:
+        """使用SHA256哈希密码"""
+        return hashlib.sha256(password.encode()).hexdigest()
+
+    def generate_username(self) -> str:
+        """生成自动递增的用户名，格式为年月日+ID（如2024051601）"""
+        today = datetime.datetime.now().strftime('%Y%m%d')
+        cursor = self.connection.cursor()
+
+        try:
+            # 查找今天最大的ID
+            cursor.execute(
+                "SELECT MAX(CAST(SUBSTRING(username, 9) AS UNSIGNED)) as max_id "
+                "FROM users WHERE username LIKE %s",
+                (f"{today}%",)
+            )
+            result = cursor.fetchone()
+            max_id = result[0] if result[0] is not None else 0
+
+            # 生成新ID
+            new_id = max_id + 1
+            return f"{today}{new_id:02d}"  # 格式化为两位数，如01, 02等
+        except Error as e:
+            log.error(f'生成用户名时出错,原因:"{e}"')
+            raise
+        finally:
+            cursor.close()
+
     def authenticate(self, username: str, password: str) -> bool:
         """验证用户凭据"""
         user = self.find(username=username)
@@ -254,4 +250,7 @@ class MySQLDatabase:
             log.info('MySQL连接已关闭。')
 
     def __del__(self):
-        self.close()
+        try:
+            self.close()
+        except (Exception, ModuleNotFoundError):
+            pass

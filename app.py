@@ -4,15 +4,15 @@
 # Time:2025/5/16 21:48
 # File:app.py
 import os
+from io import BytesIO
 
 import pandas as pd
-from io import BytesIO
-from flask import send_file
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.datastructures.file_storage import FileStorage
-from flask import Flask, render_template, Response, request, url_for, redirect
+from flask import Flask, render_template, Response, url_for, redirect,send_file,request
 
+from module import log
 from module.database import MySQLDatabase
 from module.web_detect import WebFaceDetect
 
@@ -55,14 +55,18 @@ def add_face():
             photo_path = os.path.join(app.config.get('UPLOAD_FOLDER'), secure_filename(file_name))
             photo.save(photo_path)
 
-            web_detector.add_face(
+            meta = web_detector.add_face(
                 name=name,
                 gender=gender,
                 password=password,
                 photo_path=photo_path
             )
+            e_code = meta.get('e_code')
+            if e_code:
+                log.error(f'c添加失败,原因:"{e_code}"')
+            else:
+                log.info(f'"{name}"添加成功。')
             return redirect(url_for('index'))
-
     # GET请求返回表单页面
     return render_template('add_face.html')
 
@@ -87,6 +91,10 @@ def workers():
 
 
 if __name__ == '__main__':
+    if not os.path.exists('config.py'):
+        with open('config.py', 'w') as f:
+            ...
+
     MYSQL_CONFIG = {
         'host': 'localhost',
         'database': 'face_attendance',
