@@ -5,18 +5,48 @@
 # File:app.py
 import os
 from io import BytesIO
+from functools import wraps
 
 import pandas as pd
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.datastructures.file_storage import FileStorage
-from flask import Flask, render_template, Response, redirect, send_file, jsonify, request
+from flask import Flask, render_template, Response, redirect, send_file, jsonify, url_for, request, session
 
 from module import log
 from module.database import MySQLDatabase
 from module.web_detect import WebFaceDetect
 
 app = Flask(__name__)
+app.secret_key = '1234-5678'
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user_meta: dict = db.find(username=username)
+        if db.authenticate(username, password):
+            session['username'] = username
+            if user_meta.get('user_type') == 0:
+                session['is_admin'] = True
+            else:
+                log.warning(f'{username}权限不足。')
+            return redirect(url_for('workers'))
+        else:
+            return 'Invalid username or password'
+    return render_template('login.html')
 
 
 @app.route('/')
@@ -74,6 +104,7 @@ def add_face():
 
 
 @app.route('/workers', methods=['GET'])
+@admin_required
 def workers():
     if request.args.get('export') == 'excel':
         df = pd.DataFrame(db.data)

@@ -48,7 +48,7 @@ class MySQLDatabase:
         """添加新用户（用户名自动生成）"""
 
         # 哈希密码
-        hashed_password = self._hash_password(str(password))
+        hashed_password = self.__hash_password(str(password))
 
         # 转换为 JSON 字符串
         try:
@@ -94,7 +94,7 @@ class MySQLDatabase:
             log.error(f'删除用户时出错:{e}')
             return False
 
-    def find(self, **kwargs) -> Optional[Dict[str, Any]]:
+    def find(self, **kwargs) -> Union[dict, None]:
         """根据条件查找用户"""
         if not kwargs:
             return None
@@ -108,12 +108,10 @@ class MySQLDatabase:
         try:
             cursor = self.connection.cursor(dictionary=True)
             cursor.execute(f'SELECT * FROM users WHERE {" AND ".join(conditions)} LIMIT 1', tuple(values))
-            result = cursor.fetchone()
-            if result and 'face_meta' in result:
-                result['face_meta'] = json.loads(result['face_meta'])
-            return result
+            return cursor.fetchone()
+
         except Error as e:
-            log.error(f"查找用户时出错:{e}")
+            log.error(f'查找用户时出错,原因:"{e}"')
             return None
 
     def change(self, username: str, **kwargs) -> bool:
@@ -127,8 +125,8 @@ class MySQLDatabase:
             if key == 'face_meta':
                 value = json.dumps(value.tolist() if hasattr(value, 'tolist') else value)
             elif key == 'password':
-                value = self._hash_password(value)
-            set_clause.append(f"{key} = %s")
+                value = self.__hash_password(value)
+            set_clause.append(f'{key} = %s')
             values.append(value)
 
         values.append(username)  # 添加WHERE条件的值
@@ -202,7 +200,7 @@ class MySQLDatabase:
             return []
 
     @staticmethod
-    def _hash_password(password: str) -> str:
+    def __hash_password(password: str) -> str:
         """使用SHA256哈希密码"""
         return hashlib.sha256(password.encode()).hexdigest()
 
@@ -235,8 +233,8 @@ class MySQLDatabase:
         user = self.find(username=username)
         if not user:
             return False
-        hashed_input = self._hash_password(password)
-        return user['password'] == hashed_input
+        hashed_input = self.__hash_password(password)
+        return user.get('password') == hashed_input
 
     def is_admin(self, username: str) -> bool:
         """检查用户是否为管理员"""
