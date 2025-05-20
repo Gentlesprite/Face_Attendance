@@ -10,7 +10,7 @@ import pandas as pd
 from werkzeug.utils import secure_filename
 from werkzeug.datastructures import ImmutableMultiDict
 from werkzeug.datastructures.file_storage import FileStorage
-from flask import Flask, render_template, Response, url_for, redirect,send_file,request
+from flask import Flask, render_template, Response, redirect, send_file, jsonify, request
 
 from module import log
 from module.database import MySQLDatabase
@@ -37,12 +37,12 @@ def add_face():
     # 配置文件上传
 
     if request.method == 'POST':
-        # 获取表单数据
+        # 获取表单数据。
         name = request.form.get('name')
         gender = request.form.get('gender')
-        password = int(request.form.get('password'))
+        password = str(request.form.get('password'))
 
-        # 处理文件上传
+        # 处理文件上传。
         if 'photo' not in request.files:
             return redirect(request.url)
         file: ImmutableMultiDict = request.files
@@ -63,11 +63,13 @@ def add_face():
             )
             e_code = meta.get('e_code')
             if e_code:
-                log.error(f'c添加失败,原因:"{e_code}"')
+                msg = f'添加失败,原因:"{e_code}"'
+                log.error(msg)
+                return jsonify({'status': 'error', 'message': msg})
             else:
-                log.info(f'"{name}"添加成功。')
-            return redirect(url_for('index'))
-    # GET请求返回表单页面
+                msg = f'"{name}"添加成功。'
+                log.info(msg)
+                return jsonify({'status': 'success', 'message': msg})
     return render_template('add_face.html')
 
 
@@ -91,17 +93,12 @@ def workers():
 
 
 if __name__ == '__main__':
-    if not os.path.exists('config.py'):
-        with open('config.py', 'w') as f:
-            ...
-
     MYSQL_CONFIG = {
         'host': 'localhost',
         'database': 'face_attendance',
         'user': 'root',
         'password': '123'
     }
-    # 初始化数据库和检测器
     db = MySQLDatabase(**MYSQL_CONFIG)
     web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
