@@ -19,7 +19,6 @@ class FaceDetect:
         self.cap = cap  # 不在这里初始化摄像头
         self.folder: str = folder
         self.db = database
-
         # 初始化InsightFace应用
         self.app = FaceAnalysis(
             name='antelopev2',
@@ -28,7 +27,7 @@ class FaceDetect:
             providers=['CPUExecutionProvider']
         )
         # 使用更小的检测尺寸
-        self.app.prepare(ctx_id=-1, det_size=(320, 320))  # ctx_id=-1表示强制使用CPU
+        self.app.prepare(ctx_id=-1, det_size=(160, 160))  # ctx_id=-1表示强制使用CPU
         self._cached_users = self._preprocess_data()
 
     def __take_photo(self):
@@ -39,10 +38,12 @@ class FaceDetect:
         return process_image(frame, self.folder)
 
     def __get_face_meta(
-            self, name: Union[str, None] = None,
-            age: Union[int, None] = None,
+            self,
+            name: Union[str, None] = None,
             gender: Union[str, None] = None,
-            uid: Union[int, None] = None,
+            username: Union[str, None] = None,
+            password: Union[str, None] = None,
+            user_type: Union[int, None] = None,
             photo_path: Union[str, None] = None,
             detect: bool = False  # 为True时只方法将只充当检测功能。
     ) -> Union[Dict[str, Any], None]:
@@ -54,7 +55,7 @@ class FaceDetect:
         # 使用InsightFace进行人脸检测和特征提取
         img = cv2.imread(photo_path)
         if img is None:
-            log.error(f'无法读取图片: {photo_path}')
+            log.error(f'无法读取图片:{photo_path}')
             return None
 
         faces = self.app.get(img, max_num=1)
@@ -77,19 +78,19 @@ class FaceDetect:
             'landmark': face.landmark,  # 人脸关键点
             'det_score': face.det_score,  # 检测分数
             'gender': face.gender,  # 预测性别
-            'age': face.age  # 预测年龄
         }
 
-        if not detect:
+        if detect is False:
             match_name = self.compare_face(face.embedding)
             if match_name:
                 raise UserAlreadyExists(f'用户"{match_name}"已注册,请勿重复添加。')
             try:
                 self.db.add(
                     name=name,
-                    age=age if age is not None else face.age,
                     gender=gender if gender is not None else ('男' if face.gender == 1 else '女'),
-                    uid=uid,
+                    username=username,
+                    password=password,
+                    user_type=user_type if user_type is not None else 0,  # 默认为普通用户
                     photo_path=photo_path,
                     face_meta=face.embedding.tolist()  # 转换为列表存储
                 )
@@ -110,7 +111,7 @@ class FaceDetect:
                 meta_normalized = meta_array / norm
                 users.append({
                     'name': user[self.db.NAME],
-                    'uid': user.get(self.db.UID),
+                    'username': user.get(self.db.USERNAME),
                     'meta': meta_normalized
                 })
         return users
@@ -150,7 +151,7 @@ class FaceDetect:
             return None
 
         except Exception as e:
-            log.error(f'人脸比对出错: {e}')
+            log.error(f'人脸比对出错:{e}')
             return None
 
     def detect_face(self) -> Union[str, None]:
@@ -169,24 +170,26 @@ class FaceDetect:
     def add_face(self, **kwargs) -> None:
         try:
             name = kwargs.get('name') or console.input('名字:')
-            age = kwargs.get('age')
-            if age is None:
-                age_input = console.input('年龄(留空使用自动检测):')
-                age = int(age_input) if age_input else None
             gender = kwargs.get('gender')
             if gender is None:
                 gender = console.input('性别(留空使用自动检测):')
-            uid = kwargs.get('uid')
-            if uid is None:
-                uid = int(console.input('uid:'))
+            password = kwargs.get('password')
+            if password is None:
+                password = console.input('密码:', password=True)
+            user_type = kwargs.get('user_type')
+            if user_type is None:
+                user_type_input = console.input('用户类型(0=普通用户, 1=管理员, 留空为普通用户):')
+                user_type = int(user_type_input) if user_type_input else 0
             photo_path = kwargs.get('photo_path')
 
             if photo_path:
+                username = self.db.generate_username()
                 face_meta = self.__get_face_meta(
                     name=name,
-                    age=age,
                     gender=gender,
-                    uid=uid,
+                    username=username,
+                    password=password,
+                    user_type=user_type,
                     detect=False,
                     photo_path=process_image(photo_path, self.folder)
                 )
@@ -194,28 +197,44 @@ class FaceDetect:
                 if face_meta is None:
                     console.print('在照片中未检测到人脸,请重试...')
                 else:
-                    console.print(f'新增用户:{name}。')
-
+                    console.print(f'新增用户:{name},用户名:{username}。')
                     self._cached_users = self._preprocess_data()
             else:
                 detect = True if len(kwargs) == 1 else False
                 while True:
                     try:
+                        # 先获取人脸元数据
                         face_meta = self.__get_face_meta(
                             name=name,
-                            age=age,
                             gender=gender,
-                            uid=uid,
+                            username=None,  # 先设为None，后面会生成
+                            password=password,
+                            user_type=user_type,
                             detect=detect
                         )
                         if face_meta is None:
                             console.print('未检测到人脸,请重试...')
                             continue
 
+                        # 检查是否已存在
                         match_name = self.compare_face(face_meta['embedding'])
                         if match_name:
                             console.log(f'欢迎回来,识别结果:{match_name}!')
                             break
+                        username = self.db.generate_username()
+                        # 添加新用户
+                        self.db.add(
+                            name=name,
+                            gender=gender if gender is not None else ('男' if face_meta['gender'] == 1 else '女'),
+                            username=username,
+                            password=password,
+                            user_type=user_type,
+                            photo_path=face_meta.get('photo_path', ''),
+                            face_meta=face_meta['embedding']
+                        )
+                        console.print(f'新增用户:{name}，用户名:{username}。')
+                        self._cached_users = self._preprocess_data()
+                        break
                     except UserAlreadyExists as e:
                         log.warning(e)
                         break

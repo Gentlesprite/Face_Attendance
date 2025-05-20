@@ -39,9 +39,8 @@ def add_face():
     if request.method == 'POST':
         # 获取表单数据
         name = request.form.get('name')
-        age = int(request.form.get('age'))
         gender = request.form.get('gender')
-        uid = int(request.form.get('uid'))
+        password = int(request.form.get('password'))
 
         # 处理文件上传
         if 'photo' not in request.files:
@@ -58,9 +57,8 @@ def add_face():
 
             web_detector.add_face(
                 name=name,
-                age=age,
                 gender=gender,
-                uid=uid,
+                password=password,
                 photo_path=photo_path
             )
             return redirect(url_for('index'))

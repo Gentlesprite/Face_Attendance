@@ -7,16 +7,19 @@ import json
 import datetime
 import mysql.connector
 from mysql.connector import Error, DatabaseError
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from module import log
-from module.errors import UserAlreadyExists
+from module.errors import UserAlreadyExists, FaceNotDetected
+import numpy as np
+import hashlib
 
 
 class MySQLDatabase:
     NAME = 'name'
-    AGE = 'age'
     GENDER = 'gender'
-    UID = 'uid'
+    USERNAME = 'username'
+    PASSWORD = 'password'
+    USER_TYPE = 'user_type'  # 0=普通用户, 1=管理员
     PHOTO_PATH = 'photo_path'
     FACE_META = 'face_meta'
     CREATE_TIME = 'create_time'
@@ -44,26 +47,26 @@ class MySQLDatabase:
             if self.connection.is_connected():
                 log.info('成功连接到MySQL数据库。')
         except Error as e:
-            log.error(f"连接MySQL数据库时出错: {e}")
+            log.error(f"连接MySQL数据库时出错:{e}")
             raise
 
     def _create_table(self):
-        """创建用户表（如果不存在）"""
-        create_table_query = """
-        CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            age INT NOT NULL,
-            gender VARCHAR(50) NOT NULL,
-            uid INT UNIQUE NOT NULL,
-            photo_path VARCHAR(255) NOT NULL,
-            face_meta JSON NOT NULL,
-            create_time DATETIME NOT NULL
-        )
-        """
+        """创建用户表(如果不存在)"""
         try:
             cursor = self.connection.cursor()
-            cursor.execute(create_table_query)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                gender VARCHAR(50) NOT NULL,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                user_type TINYINT DEFAULT 0 NOT NULL,  -- 0=普通用户, 1=管理员
+                photo_path VARCHAR(255) NOT NULL,
+                face_meta JSON NOT NULL,
+                create_time DATETIME NOT NULL
+            )
+            """)
             self.connection.commit()
         except Error as e:
             log.error(f"创建表时出错: {e}")
@@ -71,10 +74,9 @@ class MySQLDatabase:
 
     def load_data(self) -> List[Dict[str, Any]]:
         """从数据库加载所有用户数据"""
-        query = "SELECT * FROM users"
         try:
             cursor = self.connection.cursor(dictionary=True)
-            cursor.execute(query)
+            cursor.execute('SELECT * FROM users')
             result = cursor.fetchall()
 
             # 将JSON格式的face_meta转换为列表
@@ -83,46 +85,93 @@ class MySQLDatabase:
                     user['face_meta'] = json.loads(user['face_meta'])
 
             self.data = result
+            return result
         except Error as e:
             log.error(f"加载数据时出错: {e}")
             return []
 
-    def add(self, name: str, age: int, gender: str, uid: int, photo_path: str, face_meta):
-        """添加新用户"""
+    @staticmethod
+    def _hash_password(password: str) -> str:
+        """使用SHA256哈希密码"""
+        return hashlib.sha256(password.encode()).hexdigest()
 
-        # 检查用户是否已存在（如果 find() 方法也涉及 face_meta 判断，同样要修改）
-        if self.find(uid=uid):
-            raise UserAlreadyExists(f"UID为{uid}的用户已存在")
+    def generate_username(self) -> str:
+        """生成自动递增的用户名，格式为年月日+ID（如2024051601）"""
+        today = datetime.datetime.now().strftime("%Y%m%d")
+        cursor = self.connection.cursor()
 
-        # 转换为 JSON 字符串（确保 face_meta 是 NumPy 数组或 List[float]）
+        try:
+            # 查找今天最大的ID
+            cursor.execute(
+                "SELECT MAX(CAST(SUBSTRING(username, 9) AS UNSIGNED)) as max_id "
+                "FROM users WHERE username LIKE %s",
+                (f"{today}%",)
+            )
+            result = cursor.fetchone()
+            max_id = result[0] if result[0] is not None else 0
+
+            # 生成新ID
+            new_id = max_id + 1
+            return f"{today}{new_id:02d}"  # 格式化为两位数，如01, 02等
+        except Error as e:
+            log.error(f"生成用户名时出错: {e}")
+            raise
+        finally:
+            cursor.close()
+
+    def add(
+            self,
+            name: str,
+            gender: str,
+            username: str,
+            password: str,
+            photo_path: str,
+            face_meta: Union[np.ndarray, List[float]],
+            user_type: int = 0  # 默认为普通用户
+    ):
+        """添加新用户（用户名自动生成）"""
+
+
+        # 检查用户是否已存在（通过人脸特征）
+        # 注意：这里不再检查username，因为它是自动生成的唯一值
+
+        # 哈希密码
+        hashed_password = self._hash_password(str(password))
+
+        # 转换为 JSON 字符串
         try:
             face_meta_json = json.dumps(face_meta.tolist() if hasattr(face_meta, 'tolist') else face_meta)
         except Exception as e:
             log.error(e)
+            raise FaceNotDetected('转换为json时失败。')
+
         # 插入数据库
         cursor = self.connection.cursor()
         try:
             cursor.execute(
-                "INSERT INTO users (name, age, gender, uid, photo_path, face_meta, create_time) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (name, age, gender, uid, photo_path, face_meta_json,
-                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                """INSERT INTO users 
+                (name, gender, username, password, user_type, photo_path, face_meta, create_time) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (name, gender, username, hashed_password, user_type, photo_path, face_meta_json,
+                 datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             )
             self.connection.commit()
-            log.info(f"成功添加用户: {name}")
+            log.info(f'成功添加用户:{name},用户名:{username}。')
             self.load_data()  # 刷新缓存
+            return username  # 返回生成的用户名
         except Exception as e:
             self.connection.rollback()
-            log.error(f"数据库错误: {e}")
-            raise DatabaseError(f"添加用户失败: {e}")
+            log.error(f'数据库错误:{e}。')
+            raise DatabaseError(f'添加用户失败:{e}')
         finally:
             cursor.close()
             self.load_data()
-    def delete(self, uid: int) -> bool:
-        """根据UID删除用户"""
-        delete_query = "DELETE FROM users WHERE uid = %s"
+
+    def delete(self, username: str) -> bool:
+        """根据用户名删除用户"""
         try:
             cursor = self.connection.cursor()
-            cursor.execute(delete_query, (uid,))
+            cursor.execute('DELETE FROM users WHERE username = %s', (username,))
             self.connection.commit()
             affected_rows = cursor.rowcount
             if affected_rows > 0:
@@ -130,7 +179,7 @@ class MySQLDatabase:
                 return True
             return False
         except Error as e:
-            log.error(f"删除用户时出错: {e}")
+            log.error(f'删除用户时出错:{e}')
             return False
 
     def find(self, **kwargs) -> Optional[Dict[str, Any]]:
@@ -141,22 +190,21 @@ class MySQLDatabase:
         conditions = []
         values = []
         for key, value in kwargs.items():
-            conditions.append(f"{key} = %s")
+            conditions.append(f'{key} = %s')
             values.append(value)
 
-        query = f"SELECT * FROM users WHERE {' AND '.join(conditions)} LIMIT 1"
         try:
             cursor = self.connection.cursor(dictionary=True)
-            cursor.execute(query, tuple(values))
+            cursor.execute(f'SELECT * FROM users WHERE {" AND ".join(conditions)} LIMIT 1', tuple(values))
             result = cursor.fetchone()
             if result and 'face_meta' in result:
                 result['face_meta'] = json.loads(result['face_meta'])
             return result
         except Error as e:
-            log.error(f"查找用户时出错: {e}")
+            log.error(f"查找用户时出错:{e}")
             return None
 
-    def update(self, uid: int, **kwargs) -> bool:
+    def update(self, username: str, **kwargs) -> bool:
         """更新用户信息"""
         if not kwargs:
             return False
@@ -166,15 +214,16 @@ class MySQLDatabase:
         for key, value in kwargs.items():
             if key == 'face_meta':
                 value = json.dumps(value.tolist() if hasattr(value, 'tolist') else value)
+            elif key == 'password':
+                value = self._hash_password(value)
             set_clause.append(f"{key} = %s")
             values.append(value)
 
-        values.append(uid)  # 添加WHERE条件的值
+        values.append(username)  # 添加WHERE条件的值
 
-        query = f"UPDATE users SET {', '.join(set_clause)} WHERE uid = %s"
         try:
             cursor = self.connection.cursor()
-            cursor.execute(query, tuple(values))
+            cursor.execute(f'UPDATE users SET {", ".join(set_clause)} WHERE username = %s', tuple(values))
             self.connection.commit()
             affected_rows = cursor.rowcount
             if affected_rows > 0:
@@ -182,8 +231,21 @@ class MySQLDatabase:
                 return True
             return False
         except Error as e:
-            log.error(f"更新用户时出错: {e}")
+            log.error(f'更新用户时出错:{e}')
             return False
+
+    def authenticate(self, username: str, password: str) -> bool:
+        """验证用户凭据"""
+        user = self.find(username=username)
+        if not user:
+            return False
+        hashed_input = self._hash_password(password)
+        return user['password'] == hashed_input
+
+    def is_admin(self, username: str) -> bool:
+        """检查用户是否为管理员"""
+        user = self.find(username=username)
+        return user and user.get('user_type', 0) == 1
 
     def close(self):
         """关闭数据库连接"""
