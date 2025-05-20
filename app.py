@@ -93,12 +93,25 @@ def workers():
 
 
 if __name__ == '__main__':
-    MYSQL_CONFIG = {
-        'host': 'localhost',
-        'database': 'face_attendance',
-        'user': 'root',
-        'password': '123'
-    }
+    try:
+        from config import HOST, PORT, MYSQL_CONFIG
+    except ImportError:
+        with open('config.py', 'w') as f:
+            '''
+            # coding=UTF-8
+            # Author:Gentlesprite
+            # File:config.py
+            HOST: str = '0.0.0.0'
+            PORT: int = 5000
+            MYSQL_CONFIG = {
+                'host': ...,
+                'database': ...,
+                'user': ...,
+                'password': ...
+            }
+            '''
+        log.warning('请先完善"config.py"配置文件。')
+        exit(0)
     db = MySQLDatabase(**MYSQL_CONFIG)
     web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)

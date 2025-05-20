@@ -8,3 +8,4 @@ static/
 models/
 # ignore files
 *.json
+config.py
