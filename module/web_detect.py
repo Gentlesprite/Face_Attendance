@@ -13,8 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 from module import log, DIRECTORY_NAME
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
-from hardware.dht11 import get_environment_data
-
+from hardware.dht11 import DHTxx
 
 class WebFaceDetect(FaceDetect):
     TEMPLATES_FOLDER = os.path.join(DIRECTORY_NAME, 'templates')
@@ -73,6 +72,7 @@ class WebFaceDetect(FaceDetect):
                 success, frame = cap.read()
                 if not success:
                     break
+                '''
                 # 获取环境数据
                 env_meta = get_environment_data()
                 temperature = env_meta.get('temperature', 'N/A')
@@ -83,7 +83,7 @@ class WebFaceDetect(FaceDetect):
                 frame = self.show_chinese_text(frame, env_text,
                                                (frame.shape[1] - 300, frame.shape[0] - 32),
                                                (255, 255, 255))
-
+                '''
                 # 使用InsightFace进行人脸检测
                 faces = self.app.get(frame)
 
