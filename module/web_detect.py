@@ -7,13 +7,13 @@ import os
 
 import cv2
 import numpy as np
-
 from PIL import Image, ImageDraw, ImageFont
 
 from module import log, DIRECTORY_NAME
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
 from hardware.dht11 import DHTxx
+
 
 class WebFaceDetect(FaceDetect):
     TEMPLATES_FOLDER = os.path.join(DIRECTORY_NAME, 'templates')
@@ -25,29 +25,34 @@ class WebFaceDetect(FaceDetect):
             cap=None,  # 显式传递None，表示不初始化摄像头
             folder=os.path.join(WebFaceDetect.TEMPLATES_FOLDER, 'static', 'photos')
         )
+        self.font = self.load_font()
+        self.dht11 = DHTxx()
+        self.dht11.event_loop()
+
+    @staticmethod
+    def load_font():
         try:
-            # 尝试加载常见的中文字体
+            # 尝试加载常见的中文字体。
             font_paths = [
-                '/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc',  # 文泉驿正黑
+                '/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc',  # 文泉驿正黑。
                 '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',  # Noto字体
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',  # Noto字体。
                 'simhei.ttf'
             ]
 
             for font_path in font_paths:
                 try:
-                    self.font = ImageFont.truetype(font_path, 24)
-                    break
+                    return ImageFont.truetype(font_path, 24)
                 except Exception as e:
                     log.error(e)
                     continue
             else:
-                # 所有尝试都失败后使用默认字体
-                self.font = ImageFont.load_default()
                 log.warning('无法加载中文字体，将使用默认字体。')
+                return ImageFont.load_default()  # 所有尝试都失败后使用默认字体。
+
         except Exception as e:
             log.error(f'字体加载错误,原因:"{e}"')
-            self.font = ImageFont.load_default()
+            return ImageFont.load_default()
 
     def show_chinese_text(self, img, text, pos, color):
         """支持中文的文本绘制方法"""
@@ -72,18 +77,15 @@ class WebFaceDetect(FaceDetect):
                 success, frame = cap.read()
                 if not success:
                     break
-                '''
-                # 获取环境数据
-                env_meta = get_environment_data()
-                temperature = env_meta.get('temperature', 'N/A')
-                humidity = env_meta.get('humidity', 'N/A')
 
                 # 在视频右下角显示温度和湿度
-                env_text = f"温度: {temperature}°C  湿度: {humidity}%"
-                frame = self.show_chinese_text(frame, env_text,
-                                               (frame.shape[1] - 300, frame.shape[0] - 32),
-                                               (255, 255, 255))
-                '''
+                frame = self.show_chinese_text(
+                    frame,
+                    f'温度:{self.dht11.temperature}°C  湿度:{self.dht11.humidity}%',
+                    (frame.shape[1] - 300, frame.shape[0] - 32),
+                    (255, 255, 255)
+                )
+
                 # 使用InsightFace进行人脸检测
                 faces = self.app.get(frame)
 

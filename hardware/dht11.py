@@ -3,7 +3,9 @@
 # Software:PyCharm
 # Time:2025/5/21 16:51
 # File:dht11.py
-from typing import Union
+import threading
+import time
+
 from module import log
 
 
@@ -18,7 +20,7 @@ class DHTxx:
         except ImportError as e:
             log.warning(f'当前运行环境并非树莓派,无法使用硬件,原因:"{e}"')
 
-    def get_environment_data(self) -> Union[dict, None]:
+    def get_environment_data(self) -> dict:
         try:
             self.temperature = self.dht.temperature
             self.humidity = self.dht.humidity
@@ -31,3 +33,12 @@ class DHTxx:
                 'temperature': self.temperature,
                 'humidity': self.humidity
             }
+
+    def event_loop(self):
+        def loop():
+            while True:
+                self.get_environment_data()
+                log.info(f'温度:{self.temperature} 湿度:{self.humidity}')
+                time.sleep(1)
+
+        threading.Thread(target=loop).start()
