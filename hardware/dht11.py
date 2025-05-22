@@ -11,12 +11,14 @@ from module import log
 
 class DHTxx:
     def __init__(self):
-        self.temperature = None
-        self.humidity = None
+        self.temperature = 25  # 默认值
+        self.humidity = 50
         try:
             import adafruit_dht
             import board
-            self.dht = adafruit_dht.DHT11(board.D26)
+            self.dht = adafruit_dht.DHT11(board.D26, use_pulseio=False)
+        except RuntimeError as e:
+            log.warning(f'温度读取失败,原因"{e}"')
         except ImportError as e:
             log.warning(f'当前运行环境并非树莓派,无法使用硬件,原因:"{e}"')
 

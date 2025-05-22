@@ -16,6 +16,7 @@ from flask import Flask, render_template, Response, redirect, send_file, jsonify
 from module import log
 from module.database import MySQLDatabase
 from module.web_detect import WebFaceDetect
+from hardware.dht11 import DHTxx
 
 app = Flask(__name__)
 app.secret_key = '1234-5678'
@@ -126,6 +127,11 @@ def workers():
     return render_template('workers.html', records=db.data)
 
 
+@app.route('/dht11')
+def get_sensor_data():
+    return jsonify(dht11.get_environment_data())
+
+
 if __name__ == '__main__':
     try:
         from config import HOST, PORT, MYSQL_CONFIG
@@ -149,5 +155,7 @@ if __name__ == '__main__':
     db = MySQLDatabase(**MYSQL_CONFIG)
     web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
+    dht11 = DHTxx()
+    #dht11.event_loop()
     app.config['UPLOAD_FOLDER'] = WebFaceDetect.UPLOAD_FOLDER
     app.run(host='0.0.0.0', port=5000, debug=True)

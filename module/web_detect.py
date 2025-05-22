@@ -12,7 +12,6 @@ from PIL import Image, ImageDraw, ImageFont
 from module import log, DIRECTORY_NAME
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
-from hardware.dht11 import DHTxx
 
 
 class WebFaceDetect(FaceDetect):
@@ -26,8 +25,6 @@ class WebFaceDetect(FaceDetect):
             folder=os.path.join(WebFaceDetect.TEMPLATES_FOLDER, 'static', 'photos')
         )
         self.font = self.load_font()
-        self.dht11 = DHTxx()
-        self.dht11.event_loop()
 
     @staticmethod
     def load_font():
@@ -77,18 +74,8 @@ class WebFaceDetect(FaceDetect):
                 success, frame = cap.read()
                 if not success:
                     break
-
-                # 在视频右下角显示温度和湿度
-                frame = self.show_chinese_text(
-                    frame,
-                    f'温度:{self.dht11.temperature}°C  湿度:{self.dht11.humidity}%',
-                    (frame.shape[1] - 300, frame.shape[0] - 32),
-                    (255, 255, 255)
-                )
-
                 # 使用InsightFace进行人脸检测
                 faces = self.app.get(frame)
-
                 # 在检测到的人脸周围画框并显示识别结果
                 for face in faces:
                     # 绘制人脸框
@@ -106,7 +93,6 @@ class WebFaceDetect(FaceDetect):
                         # 显示未识别
                         text = '未识别'
                         frame = self.show_chinese_text(frame, text, (bbox[0], bbox[3] + 25), (0, 0, 255))
-
                 # 将帧转换为JPEG格式
                 ret, buffer = cv2.imencode('.jpg', frame)
                 frame = buffer.tobytes()
