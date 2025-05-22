@@ -4,6 +4,7 @@
 # Time:2025/5/16 21:48
 # File:app.py
 import os
+import sys
 from io import BytesIO
 from functools import wraps
 
@@ -128,8 +129,8 @@ def workers():
 
 
 @app.route('/dht11')
-def get_sensor_data():
-    return jsonify(dht11.get_environment_data())
+def dht11():
+    return jsonify(dht11.get_data())
 
 
 if __name__ == '__main__':
@@ -151,11 +152,10 @@ if __name__ == '__main__':
             }
             '''
         log.warning('请先完善"config.py"配置文件。')
-        exit(0)
+        sys.exit(0)
     db = MySQLDatabase(**MYSQL_CONFIG)
     web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
     dht11 = DHTxx()
-    #dht11.event_loop()
     app.config['UPLOAD_FOLDER'] = WebFaceDetect.UPLOAD_FOLDER
     app.run(host='0.0.0.0', port=5000, debug=True)

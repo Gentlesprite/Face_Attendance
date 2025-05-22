@@ -6,7 +6,8 @@
 import threading
 import time
 
-from module import log
+from hardware import DHTxx_PIN, import_error
+from module import log, console
 
 
 class DHTxx:
@@ -15,14 +16,13 @@ class DHTxx:
         self.humidity = 50
         try:
             import adafruit_dht
-            import board
-            self.dht = adafruit_dht.DHT11(board.D26, use_pulseio=False)
+            self.dht = adafruit_dht.DHT11(DHTxx_PIN, use_pulseio=False)
         except RuntimeError as e:
-            log.warning(f'温度读取失败,原因"{e}"')
+            log.warning(f'温湿度传感器初始化失败,原因"{e}"')
         except ImportError as e:
-            log.warning(f'当前运行环境并非树莓派,无法使用硬件,原因:"{e}"')
+            import_error(e)
 
-    def get_environment_data(self) -> dict:
+    def get_data(self) -> dict:
         try:
             self.temperature = self.dht.temperature
             self.humidity = self.dht.humidity
@@ -36,11 +36,21 @@ class DHTxx:
                 'humidity': self.humidity
             }
 
-    def event_loop(self):
-        def loop():
+    def loop(self):
+        def _loop():
             while True:
-                self.get_environment_data()
+                self.get_data()
                 log.info(f'温度:{self.temperature} 湿度:{self.humidity}')
                 time.sleep(1)
 
-        threading.Thread(target=loop).start()
+        threading.Thread(target=_loop).start()
+
+
+if __name__ == '__main__':
+    dht11 = DHTxx()
+    while True:
+        try:
+            console.print(dht11.get_data())
+            time.sleep(1)
+        except KeyboardInterrupt:
+            pass

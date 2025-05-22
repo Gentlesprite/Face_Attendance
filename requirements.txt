@@ -13,7 +13,8 @@ pandas~=2.2.3
 insightface~=0.7.3
 onnxruntime
 pandas
-# usage hardware pi
+# usage hardware pi only.
 adafruit-circuitpython-dht
 lgpio
 sysv-ipc
+rpi-lgpio
