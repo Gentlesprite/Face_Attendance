@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title></title>
+    <title>实时人脸识别系统</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -41,6 +41,27 @@
             margin-right: auto;
             text-align: left;
         }
+        #environment-data {
+            margin: 20px auto;
+            padding: 15px;
+            background-color: #e0f7fa;
+            border-radius: 8px;
+            width: 300px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            font-size: 18px;
+        }
+        .data-item {
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .data-label {
+            font-weight: bold;
+            color: #00796b;
+        }
+        .data-value {
+            color: #00838f;
+        }
     </style>
 </head>
 <body>
@@ -48,5 +69,37 @@
     <div id="video-container">
         <img src="{{ url_for('video') }}" width="640" height="480">
     </div>
+
+    <div id="environment-data">
+        <div class="data-item">
+            <span class="data-label">温度:</span>
+            <span id="temperature-value" class="data-value">-- °C</span>
+        </div>
+        <div class="data-item">
+            <span class="data-label">湿度:</span>
+            <span id="humidity-value" class="data-value">-- %</span>
+        </div>
+    </div>
+
+    <script>
+        // 获取温湿度数据并更新显示
+        function updateEnvironmentData() {
+            fetch('/dht11')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('temperature-value').textContent = data.temperature + ' °C';
+                    document.getElementById('humidity-value').textContent = data.humidity + ' %';
+                })
+                .catch(error => {
+                    console.error('获取温湿度数据失败:', error);
+                });
+        }
+
+        // 页面加载后立即获取一次数据
+        updateEnvironmentData();
+
+        // 每5秒自动更新一次数据
+        setInterval(updateEnvironmentData, 5000);
+    </script>
 </body>
 </html>
