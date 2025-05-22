@@ -23,11 +23,11 @@ class FaceDetect:
         self.app = FaceAnalysis(
             name='antelopev2',
             root='./models',
-            allowed_modules=['detection', 'recognition', 'genderage'],
+            allowed_modules=['detection', 'recognition'],
             providers=['CPUExecutionProvider']
         )
         # 使用更小的检测尺寸
-        self.app.prepare(ctx_id=-1, det_size=(160, 160))  # ctx_id=-1表示强制使用CPU
+        self.app.prepare(ctx_id=0, det_size=(160, 160), det_thresh=0.3)
         self.__cached_users = self.__pre_process_data()
 
     def take_photo(self):
