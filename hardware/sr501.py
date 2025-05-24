@@ -1,0 +1,40 @@
+# coding=UTF-8
+# Author:Gentlesprite
+# Software:PyCharm
+# Time:2025/5/24 18:49
+# File:sr501.py
+import time
+from hardware import SR501_PIN, import_error
+from module import log, console
+
+
+class SR501:
+    def __init__(self):
+        try:
+            import RPi.GPIO as GPIO
+            from hardware import SR501_PIN
+            self.GPIO = GPIO
+            self.GPIO.setmode(GPIO.BCM)
+            self.GPIO.setup(SR501_PIN, GPIO.IN)
+        except RuntimeError as e:
+            log.warning(f'温湿度传感器初始化失败,原因"{e}"')
+        except ImportError as e:
+            import_error(e)
+
+    def __del__(self):
+        self.GPIO.cleanup()
+
+    def detect(self):
+        try:
+            if self.GPIO.input(SR501_PIN):
+                return True
+            return False
+        except RuntimeError:
+            return False
+
+
+if __name__ == '__main__':
+    sr501 = SR501()
+    while True:
+        console.print(sr501.detect())
+        time.sleep(1)
