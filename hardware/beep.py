@@ -13,7 +13,6 @@ class Beep:
     def __init__(self):
         try:
             import RPi.GPIO as GPIO
-            import time
             self.GPIO = GPIO
             self.GPIO.setwarnings(False)
             self.GPIO.setmode(GPIO.BCM)

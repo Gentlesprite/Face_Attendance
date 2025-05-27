@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from module import log, DIRECTORY_NAME
+from module import log, DIRECTORY_NAME, ALARM_TIMEOUT
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
 from hardware.sr501 import SR501
@@ -64,47 +64,86 @@ class WebFaceDetect(FaceDetect):
         """生成带有面部检测框和识别结果的视频帧"""
         sr501 = SR501()
         cap = cv2.VideoCapture(0)
+
+        # 初始化默认帧
+        default_frame = (
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n' +
+                cv2.imencode('.jpg', np.zeros((480, 640, 3), dtype=np.uint8))[1].tobytes() +
+                b'\r\n'
+        )
+
         if not cap.isOpened():
             log.error('无法访问摄像头!')
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' +
-                   cv2.imencode('.jpg', np.zeros((480, 640, 3), dtype=np.uint8))[1].tobytes() +
-                   b'\r\n')
+            yield default_frame
             return
 
         try:
             while True:
-                success, frame = cap.read()
-                if not success:
-                    break
-                if not sr501.detect():
+                # 等待SR501检测到人
+                while not sr501.detect():
                     log.info('睡眠中,等待人靠近唤醒...')
                     time.sleep(1)
                     continue
-                # 使用InsightFace进行人脸检测
-                faces = self.app.get(frame)
-                # 在检测到的人脸周围画框并显示识别结果
-                for face in faces:
-                    # 绘制人脸框
-                    bbox = face.bbox.astype(int)
-                    cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
 
-                    # 识别人脸
-                    match_name = self.compare_face(face.embedding)
+                log.info('检测到人员，开始识别...')
+                start_time = time.time()
+                recognized = False
+                intruder_alert = False
 
-                    if match_name:
-                        # 使用支持中文的方法显示识别出的名字
-                        text = f'识别:{match_name}'
-                        frame = self.show_chinese_text(frame, text, (bbox[0], bbox[3] + 25), (0, 255, 0))
-                    else:
-                        # 显示未识别
-                        text = '未识别'
-                        frame = self.show_chinese_text(frame, text, (bbox[0], bbox[3] + 25), (0, 0, 255))
-                # 将帧转换为JPEG格式
-                ret, buffer = cv2.imencode('.jpg', frame)
-                frame = buffer.tobytes()
+                # 持续识别直到识别成功或超时
+                while not recognized and not intruder_alert:
+                    success, frame = cap.read()
+                    if not success:
+                        log.warning('无法读取视频帧!')
+                        break
 
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                    # 面部检测和处理
+                    faces = self.app.get(frame)
+
+                    for face in faces:
+                        bbox = face.bbox.astype(int)
+                        cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+
+                        # 面部识别
+                        match_name = self.compare_face(face.embedding)
+                        if match_name:
+                            recognized = True
+                            recognition_text = f'识别:{match_name}'
+                            text_color = (0, 255, 0)
+                        else:
+                            recognition_text = '未识别'
+                            text_color = (0, 0, 255)
+
+                        frame = self.show_chinese_text(
+                            frame,
+                            recognition_text,
+                            (bbox[0], bbox[3] + 25),
+                            text_color
+                        )
+
+                    if (time.time() - start_time) > ALARM_TIMEOUT and not recognized:
+                        intruder_alert = True
+                        log.warning('非法闯入!')
+                        frame = self.show_chinese_text(
+                            frame,
+                            '非法闯入!',
+                            (20, 50),
+                            (0, 0, 255)
+                        )
+
+                    # 编码和返回帧
+                    _, buffer = cv2.imencode('.jpg', frame)
+                    frame_bytes = buffer.tobytes()
+
+                    yield (
+                            b'--frame\r\n'
+                            b'Content-Type: image/jpeg\r\n\r\n' +
+                            frame_bytes +
+                            b'\r\n'
+                    )
+        except Exception as e:
+            log.error(f'视频流生成错误,原因:"{e}"')
+            yield default_frame
         finally:
             cap.release()

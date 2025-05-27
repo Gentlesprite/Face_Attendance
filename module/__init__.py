@@ -24,7 +24,7 @@ LOG_FORMAT = '%(name)s:%(funcName)s:%(lineno)d - %(message)s'
 os.makedirs(APPDATA_PATH, exist_ok=True)
 MAX_LOG_SIZE = 10 * 1024 * 1024  # 10 MB
 BACKUP_COUNT = 0  # 不保留日志文件
-
+ALARM_TIMEOUT = 5
 # 配置日志文件处理器（支持日志轮换）
 file_handler = RotatingFileHandler(
     filename=LOG_PATH,

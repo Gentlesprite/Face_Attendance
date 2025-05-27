@@ -7,11 +7,11 @@ import time
 from hardware import SR501_PIN, import_error
 from module import log, console
 
-import RPi.GPIO as GPIO
+
 class SR501:
     def __init__(self):
         try:
-
+            import RPi.GPIO as GPIO
             self.GPIO = GPIO
             self.GPIO.setmode(GPIO.BCM)
             self.GPIO.setup(SR501_PIN, GPIO.IN)
