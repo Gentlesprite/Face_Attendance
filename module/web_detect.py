@@ -4,6 +4,7 @@
 # Time:2025/5/17 13:39
 # File:web.py
 import os
+import time
 
 import cv2
 import numpy as np
@@ -12,6 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 from module import log, DIRECTORY_NAME
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
+from hardware.sr501 import SR501
 
 
 class WebFaceDetect(FaceDetect):
@@ -60,6 +62,7 @@ class WebFaceDetect(FaceDetect):
 
     def gen_frames(self):
         """生成带有面部检测框和识别结果的视频帧"""
+        sr501 = SR501()
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             log.error('无法访问摄像头!')
@@ -74,6 +77,10 @@ class WebFaceDetect(FaceDetect):
                 success, frame = cap.read()
                 if not success:
                     break
+                if not sr501.detect():
+                    log.info('睡眠中,等待人靠近唤醒...')
+                    time.sleep(1)
+                    continue
                 # 使用InsightFace进行人脸检测
                 faces = self.app.get(frame)
                 # 在检测到的人脸周围画框并显示识别结果
