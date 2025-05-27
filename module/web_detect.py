@@ -14,6 +14,7 @@ from module import log, DIRECTORY_NAME, ALARM_TIMEOUT
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
 from hardware.sr501 import SR501
+from hardware.beep import Beep
 
 
 class WebFaceDetect(FaceDetect):
@@ -63,6 +64,7 @@ class WebFaceDetect(FaceDetect):
     def gen_frames(self):
         """生成带有面部检测框和识别结果的视频帧"""
         sr501 = SR501()
+        beep = Beep()
         cap = cv2.VideoCapture(0)
         default_frame = (
                 b'--frame\r\n'
@@ -133,6 +135,8 @@ class WebFaceDetect(FaceDetect):
                                 b'\r\n'
                         )
                         log.warning('非法闯入!')
+                        beep.simple_alarm()
+                        break
 
                     _, buffer = cv2.imencode('.jpg', frame)
                     yield (
