@@ -21,20 +21,19 @@ class SR501:
         except ImportError as e:
             import_error(e)
 
-    def __del__(self):
-        self.GPIO.cleanup()
-
-    def detect(self):
+    def detect(self) -> bool:
         try:
-            if self.GPIO.input(SR501_PIN):
-                return True
-            return False
+            return bool(self.GPIO.input(SR501_PIN))
         except RuntimeError:
             return False
 
 
 if __name__ == '__main__':
     sr501 = SR501()
-    while True:
-        console.print(sr501.detect())
-        time.sleep(1)
+    try:
+        while True:
+            console.print(sr501.detect())
+            time.sleep(1)
+    except Exception as e:
+        log.info(e)
+        sr501.GPIO.cleanup()

@@ -27,7 +27,7 @@ class FaceDetect:
             providers=['CPUExecutionProvider']
         )
         # 使用更小的检测尺寸
-        self.app.prepare(ctx_id=0, det_size=(160, 160), det_thresh=0.3)
+        self.app.prepare(ctx_id=0, det_size=(64, 64), det_thresh=0.3)
         self.__cached_users = self.__pre_process_data()
 
     def take_photo(self):
