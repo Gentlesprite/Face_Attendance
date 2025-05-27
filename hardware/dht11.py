@@ -7,7 +7,7 @@ import threading
 import time
 
 from hardware import DHTxx_PIN, import_error
-from module import log, console
+from module import log
 
 
 class DHTxx:
@@ -47,6 +47,8 @@ class DHTxx:
 
 
 if __name__ == '__main__':
+    from module import console
+
     dht11 = DHTxx()
     while True:
         try:

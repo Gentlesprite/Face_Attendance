@@ -5,7 +5,7 @@
 # File:beep.py
 import time
 
-from module import log, console
+from module import log
 from hardware import BEEP_PIN, import_error
 
 
@@ -21,11 +21,6 @@ class Beep:
             self.pwm.start(0)  # 初始占空比为0，不发声
         except ImportError as e:
             import_error(e)
-
-    def clean_up(self):
-        self.pwm.stop()
-        self.GPIO.cleanup()
-        log.info(f'GPIO{BEEP_PIN}资源已清理。')
 
     def simple_alarm(self, duration=5):
         """简单急促警报"""
@@ -102,6 +97,8 @@ class Beep:
 
 # 使用示例
 if __name__ == '__main__':
+    from module import console
+
     try:
         beep = Beep()
         console.print('===门禁系统报警测试===\n1.简单急促警报\n2.频率渐升警报\n3.脉冲式警报\n4.警笛式警报')

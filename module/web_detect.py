@@ -72,6 +72,20 @@ class WebFaceDetect(FaceDetect):
                 cv2.imencode('.jpg', np.zeros((480, 640, 3), dtype=np.uint8))[1].tobytes() +
                 b'\r\n'
         )
+        # 创建睡眠状态帧（带文字提示）
+        sleep_frame_img = np.zeros((480, 640, 3), dtype=np.uint8)
+        sleep_frame_img = self.show_chinese_text(
+            sleep_frame_img,
+            '睡眠中,等待人靠近唤醒...',
+            (200, 240),
+            (255, 255, 255)
+        )
+        sleep_frame = (
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n\r\n' +
+                cv2.imencode('.jpg', sleep_frame_img)[1].tobytes() +
+                b'\r\n'
+        )
 
         if not cap.isOpened():
             log.error('无法访问摄像头!')
@@ -82,6 +96,7 @@ class WebFaceDetect(FaceDetect):
             while True:
                 while not sr501.detect():
                     log.info('睡眠中,等待人靠近唤醒...')
+                    yield sleep_frame
                     time.sleep(1)
                     continue
 
@@ -147,7 +162,11 @@ class WebFaceDetect(FaceDetect):
                     )
 
         except Exception as e:
-            log.error(f'视频流生成错误: {str(e)}')
+            log.error(f'视频流生成错误,原因:"{e}"')
             yield default_frame
+        except KeyboardInterrupt:
+            beep.GPIO.clean_up()
+            sr501.GPIO.clean_up()
+            log.info('已退出视频流...')
         finally:
             cap.release()
