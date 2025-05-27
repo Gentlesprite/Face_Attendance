@@ -3,9 +3,10 @@
 __pycache__/
 venv/
 test*
+config*
 photos/
 static/
 models/
 # ignore files
 *.json
-config.py
+config*.py

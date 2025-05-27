@@ -24,7 +24,13 @@ class MySQLDatabase:
     FACE_META = 'face_meta'
     CREATE_TIME = 'create_time'
 
-    def __init__(self, host: str, database: str, user: str, password: str):
+    def __init__(
+            self,
+            host: str,
+            database: str,
+            user: str,
+            password: str
+    ):
         self.host = host
         self.database = database
         self.user = user

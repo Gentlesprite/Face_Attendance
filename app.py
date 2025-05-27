@@ -134,28 +134,48 @@ def dht11():
 
 
 if __name__ == '__main__':
+    CONFIG_FILE = 'config.py'
     try:
-        from config import HOST, PORT, MYSQL_CONFIG
+        if not os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'w') as f:
+                f.write('''# coding=UTF-8
+# Author:Gentlesprite
+# File:config.py
+class Flask:
+    HOST: str = '0.0.0.0'
+    PORT: int = 5000
+
+
+class MySQL:
+    HOST: str = ...
+    database: str = ...
+    user: str = ...
+    password: str = ...
+
+
+class MQTT:
+    HOST: str = ...
+    PORT: int = ...
+    TOPIC: str = ...
+    USERNAME: str = ...
+    PASSWORD: str = ...
+    CLIENT_ID: str = ...
+'''
+                        )
+            log.warning('请先完善"config.py"配置文件。')
+            sys.exit(0)
+        from config import FlaskConfig, MySQLConfig
     except ImportError:
-        with open('config.py', 'w') as f:
-            '''
-            # coding=UTF-8
-            # Author:Gentlesprite
-            # File:config.py
-            HOST: str = '0.0.0.0'
-            PORT: int = 5000
-            MYSQL_CONFIG = {
-                'host': ...,
-                'database': ...,
-                'user': ...,
-                'password': ...
-            }
-            '''
-        log.warning('请先完善"config.py"配置文件。')
+        log.error('读取配置文件出错。')
         sys.exit(0)
-    db = MySQLDatabase(**MYSQL_CONFIG)
+    db = MySQLDatabase(
+        host=MySQLConfig.HOST,
+        database=MySQLConfig.DATABASE,
+        user=MySQLConfig.USER,
+        password=MySQLConfig.PASSWORD
+    )
     web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
     dht11 = DHTxx()
     app.config['UPLOAD_FOLDER'] = WebFaceDetect.UPLOAD_FOLDER
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host=FlaskConfig.HOST, port=FlaskConfig.PORT, debug=True)
