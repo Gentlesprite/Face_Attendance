@@ -2,7 +2,7 @@
 # Author:Gentlesprite
 # Software:PyCharm
 # Time:2025/5/15 23:57
-# File:face.py
+# File:detect.py
 import os
 import numpy as np
 from typing import List, Dict, Any, Union

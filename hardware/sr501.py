@@ -33,4 +33,6 @@ if __name__ == '__main__':
             console.print(sr501.detect())
             time.sleep(1)
     except (Exception, KeyboardInterrupt, RuntimeError):
+        pass
+    finally:
         sr501.GPIO.cleanup()

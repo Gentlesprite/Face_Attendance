@@ -99,8 +99,8 @@ class Beep:
 if __name__ == '__main__':
     from module import console
 
+    beep = Beep()
     try:
-        beep = Beep()
         console.print('===门禁系统报警测试===\n1.简单急促警报\n2.频率渐升警报\n3.脉冲式警报\n4.警笛式警报')
         while True:
             choice = console.input('请选择报警模式(1-4):')
@@ -118,3 +118,5 @@ if __name__ == '__main__':
             break
     except KeyboardInterrupt:
         pass
+    finally:
+        beep.GPIO.cleanup()

@@ -16,7 +16,6 @@ from flask import Flask, render_template, Response, redirect, send_file, jsonify
 
 from module import log
 from module.database import MySQLDatabase
-from module.mqtt import MQTTClient
 from module.web_detect import WebFaceDetect
 from hardware.dht11 import DHTxx
 
@@ -142,7 +141,6 @@ if __name__ == '__main__':
                 f.write('''# coding=UTF-8
 # Author:Gentlesprite
 # File:config.py
-from typing import Union, List
 class Flask:
     HOST: str = '0.0.0.0'
     PORT: int = 5000
@@ -158,7 +156,7 @@ class MySQL:
 class MQTT:
     HOST: str = ...
     PORT: int = ...
-    TOPIC: Union[str, List[str]] = ...
+    TOPIC: str = ...
     USERNAME: str = ...
     PASSWORD: str = ...
     CLIENT_ID: str = ...
@@ -175,14 +173,6 @@ class MQTT:
         database=MySQLConfig.DATABASE,
         user=MySQLConfig.USER,
         password=MySQLConfig.PASSWORD
-    )
-    mqtt = MQTTClient(
-        ip=MQTTConfig.HOST,
-        port=MQTTConfig.PORT,
-        topic=MQTTConfig.TOPIC,
-        username=MQTTConfig.USERNAME,
-        password=MQTTConfig.PASSWORD,
-        client_id=MQTTConfig.CLIENT_ID
     )
     web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)

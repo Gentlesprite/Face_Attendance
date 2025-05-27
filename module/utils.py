@@ -21,3 +21,10 @@ def process_image(path, folder) -> str:
     photo_path = f'{folder}/{timestamp}.jpg'
     cv2.imwrite(photo_path, rgb_frame)
     return os.path.normpath(photo_path)
+
+
+def format_time(time_stamp=None, time_format='%Y-%m-%d %H:%M:%S') -> str:
+    """将时间戳格式化为日志时间格式"""
+    if time_stamp is None:
+        time_stamp = datetime.datetime.now().timestamp()
+    return datetime.datetime.fromtimestamp(time_stamp).strftime(time_format)

@@ -2,7 +2,7 @@
 # Author:Gentlesprite
 # Software:PyCharm
 # Time:2025/5/17 13:39
-# File:web.py
+# File:web_detect.py
 import os
 import time
 
@@ -10,7 +10,10 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from config import MQTTConfig
 from module import log, DIRECTORY_NAME, ALARM_TIMEOUT
+from module.utils import format_time
+from module.hook_mqtt import HookMQTTClient
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
 from hardware.sr501 import SR501
@@ -28,6 +31,14 @@ class WebFaceDetect(FaceDetect):
             folder=os.path.join(WebFaceDetect.TEMPLATES_FOLDER, 'static', 'photos')
         )
         self.font = self.load_font()
+        self.mqtt = HookMQTTClient(
+            ip=MQTTConfig.HOST,
+            port=MQTTConfig.PORT,
+            topic=MQTTConfig.TOPIC,
+            username=MQTTConfig.USERNAME,
+            password=MQTTConfig.PASSWORD,
+            client_id=MQTTConfig.CLIENT_ID
+        )
 
     @staticmethod
     def load_font():
@@ -127,6 +138,7 @@ class WebFaceDetect(FaceDetect):
 
                     if match_name:
                         _, buffer = cv2.imencode('.jpg', frame)
+                        self.mqtt.publish(MQTTConfig.TOPIC, f'[{format_time()}] {match_name}已进入。')
                         yield (
                                 b'--frame\r\n'
                                 b'Content-Type: image/jpeg\r\n\r\n' +
@@ -150,6 +162,7 @@ class WebFaceDetect(FaceDetect):
                                 b'\r\n'
                         )
                         log.warning('非法闯入!')
+                        self.mqtt.publish(MQTTConfig.TOPIC, f'[{format_time()}] 非法闯入警告!')
                         beep.simple_alarm()
                         break
 
@@ -165,8 +178,10 @@ class WebFaceDetect(FaceDetect):
             log.error(f'视频流生成错误,原因:"{e}"')
             yield default_frame
         except KeyboardInterrupt:
+            log.info('键盘中断。')
+        finally:
             beep.GPIO.clean_up()
             sr501.GPIO.clean_up()
-            log.info('已退出视频流...')
-        finally:
+            log.info('GPIO资源释放成功')
             cap.release()
+            log.info('摄像头资源释放成功。')

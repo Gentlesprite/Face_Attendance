@@ -3,8 +3,6 @@
 # Software:PyCharm
 # Time:2025/5/27 12:31
 # File:mqtt.py
-from typing import Union, List
-
 import paho.mqtt.client as mqtt
 
 from module import log
@@ -15,7 +13,7 @@ class MQTTClient:
             self,
             ip: str,
             port: int,
-            topic: Union[str, List[str]],
+            topic: str,
             username: str,
             password: str,
             client_id: str = 'pi-mqtt-client',
@@ -28,7 +26,6 @@ class MQTTClient:
         self.client = mqtt.Client(client_id=self.client_id, callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         self.client.username_pw_set(username, password)
         self.__config_callback()
-        self.__add_topic()
         self.__connect()
         self.client.loop_forever() if main_loop else self.client.loop_start()
 
@@ -40,7 +37,7 @@ class MQTTClient:
         try:
             if self.client.connect(self.ip, self.port, 60) == 0:
                 log.info('连接MQTT服务器成功。')
-                self.__add_topic()
+                self.client.subscribe(self.topic)
                 log.info(
                     f'"{self.client_id}"新增订阅主题:{",".join(self.topic) if isinstance(self.topic, list) else self.topic}。')
             else:
@@ -49,13 +46,6 @@ class MQTTClient:
         except (Exception, ConnectionError) as e:
             log.error(f'连接MQTT服务器失败,请检查配置文件或服务器状态,原因:"{e}"')
 
-    def __add_topic(self):
-        if isinstance(self.topic, str):
-            self.client.subscribe(self.topic)
-        elif isinstance(self.topic, list):
-            for t in self.topic:
-                self.client.subscribe(t)
-
     @staticmethod
     def on_connect(client: mqtt.Client, userdata, flags, reason_code, properties):
         if reason_code != 0:
@@ -63,16 +53,53 @@ class MQTTClient:
 
     @staticmethod
     def on_message(client, userdata, message):
-        log.info(f'[Topic]:{message.topic} [Message]:{message.payload.decode()}')
+        log.info(f'收到消息 - [Topic]:{message.topic} [Message]:{message.payload.decode()}')
+
+    def publish(self, topic: str, payload: str, qos: int = 0, retain: bool = False) -> None:
+        """
+        发布消息到指定的MQTT主题
+
+        :param topic: 要发布消息的主题
+        :param payload: 要发布的消息内容
+        :param qos: 服务质量等级 (0, 1, 或 2)
+        :param retain: 是否保留消息
+        """
+        result = self.client.publish(topic, payload, qos, retain)
+        if result.rc == 0:
+            log.info(f'消息发布成功 - [Topic]:{topic} [Message]:{payload}')
+        else:
+            log.error(f'消息发布失败 - [Topic]:{topic} [Error]:{mqtt.error_string(result.rc)}')
 
 
 if __name__ == '__main__':
-    mqtt = MQTTClient(
-        ip='10.10.10.106',
-        port=1883,
-        topic=['test', 'test2', 'test3', 'test4'],
-        username='admin',
-        password='public',
-        client_id='pi-lzy',
-        main_loop=True
-    )
+    from module import console
+
+    try:
+        console.print('===测试MQTT服务器===\n1.测试其他客户端接收消息\n2.测试本地客户端发送消息')
+        _main_loop = False
+        while True:
+            choice = console.input('请选择测试项目(1-2):')
+            if choice == '1':
+                _main_loop = True
+                console.print('请使用其他客户端设置订阅主题"test"并发送消息,查看终端是否这正常接收。')
+                break
+            elif choice == '2':
+                _main_loop = False
+                console.print(
+                    '请先使用其他客户端订阅主题"pi"并等待消息发布,若无响应,请先将其他客户端订阅主题"pi"后,重新运行当前程序。')
+                break
+            else:
+                console.print(f'"{choice}"无效选择。')
+                continue
+        mqtt = MQTTClient(
+            ip=console.input('输入MQTT服务器IP:'),
+            port=1883,
+            topic='test',
+            username='admin',
+            password='public',
+            client_id='pi-lzy',
+            main_loop=_main_loop
+        )
+        mqtt.publish('pi', 'This is a test message.') if not _main_loop else None
+    except KeyboardInterrupt:
+        pass
