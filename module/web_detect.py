@@ -64,8 +64,6 @@ class WebFaceDetect(FaceDetect):
         """生成带有面部检测框和识别结果的视频帧"""
         sr501 = SR501()
         cap = cv2.VideoCapture(0)
-
-        # 初始化默认帧
         default_frame = (
                 b'--frame\r\n'
                 b'Content-Type: image/jpeg\r\n\r\n' +
@@ -80,40 +78,28 @@ class WebFaceDetect(FaceDetect):
 
         try:
             while True:
-                # 等待SR501检测到人
                 while not sr501.detect():
                     log.info('睡眠中,等待人靠近唤醒...')
                     time.sleep(1)
                     continue
 
-                log.info('检测到人员，开始识别...')
+                log.info('检测到有人靠近,开始识别...')
                 start_time = time.time()
-                recognized = False
-                intruder_alert = False
 
-                # 持续识别直到识别成功或超时
-                while not recognized and not intruder_alert:
+                while True:  # 持续识别直到超时或识别成功。
                     success, frame = cap.read()
                     if not success:
                         log.warning('无法读取视频帧!')
                         break
 
-                    # 面部检测和处理
-                    faces = self.app.get(frame)
-
+                    faces = self.app.get(frame)  # 面部检测和处理。
+                    match_name = None
                     for face in faces:
                         bbox = face.bbox.astype(int)
                         cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
-
-                        # 面部识别
                         match_name = self.compare_face(face.embedding)
-                        if match_name:
-                            recognized = True
-                            recognition_text = f'识别:{match_name}'
-                            text_color = (0, 255, 0)
-                        else:
-                            recognition_text = '未识别'
-                            text_color = (0, 0, 255)
+                        recognition_text = f'识别:{match_name}' if match_name else '未识别'
+                        text_color = (0, 255, 0) if match_name else (0, 0, 255)
 
                         frame = self.show_chinese_text(
                             frame,
@@ -122,28 +108,42 @@ class WebFaceDetect(FaceDetect):
                             text_color
                         )
 
-                    if (time.time() - start_time) > ALARM_TIMEOUT and not recognized:
-                        intruder_alert = True
-                        log.warning('非法闯入!')
+                    if match_name:
+                        _, buffer = cv2.imencode('.jpg', frame)
+                        yield (
+                                b'--frame\r\n'
+                                b'Content-Type: image/jpeg\r\n\r\n' +
+                                buffer.tobytes() +
+                                b'\r\n'
+                        )
+                        break
+
+                    if (time.time() - start_time) > ALARM_TIMEOUT:
                         frame = self.show_chinese_text(
                             frame,
                             '非法闯入!',
                             (20, 50),
                             (0, 0, 255)
                         )
+                        _, buffer = cv2.imencode('.jpg', frame)
+                        yield (
+                                b'--frame\r\n'
+                                b'Content-Type: image/jpeg\r\n\r\n' +
+                                buffer.tobytes() +
+                                b'\r\n'
+                        )
+                        log.warning('非法闯入!')
 
-                    # 编码和返回帧
                     _, buffer = cv2.imencode('.jpg', frame)
-                    frame_bytes = buffer.tobytes()
-
                     yield (
                             b'--frame\r\n'
                             b'Content-Type: image/jpeg\r\n\r\n' +
-                            frame_bytes +
+                            buffer.tobytes() +
                             b'\r\n'
                     )
+
         except Exception as e:
-            log.error(f'视频流生成错误,原因:"{e}"')
+            log.error(f'视频流生成错误: {str(e)}')
             yield default_frame
         finally:
             cap.release()
