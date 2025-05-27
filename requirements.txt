@@ -18,3 +18,4 @@ adafruit-circuitpython-dht
 lgpio
 sysv-ipc
 rpi-lgpio
+paho-mqtt
