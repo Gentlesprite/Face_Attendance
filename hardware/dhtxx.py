@@ -2,21 +2,27 @@
 # Author:Gentlesprite
 # Software:PyCharm
 # Time:2025/5/21 16:51
-# File:dht11.py
-import threading
+# File:dhtxx.py
 import time
+import threading
 
 from hardware import DHTxx_PIN, import_error
 from module import log
 
 
 class DHTxx:
-    def __init__(self):
-        self.temperature = 25  # 默认值
+    II: str = '11'
+    ZZ: str = '22'
+
+    def __init__(self, hardware: str = '11'):
+        self.temperature = 25
         self.humidity = 50
         try:
             import adafruit_dht
-            self.dht = adafruit_dht.DHT11(DHTxx_PIN, use_pulseio=False)
+            if hardware == DHTxx.II:
+                self.dht = adafruit_dht.DHT11(DHTxx_PIN, use_pulseio=False)
+            elif hardware == DHTxx.ZZ:
+                self.dht = adafruit_dht.DHT22(DHTxx_PIN, use_pulseio=False)
         except RuntimeError as e:
             log.warning(f'温湿度传感器初始化失败,原因"{e}"')
         except ImportError as e:
@@ -49,10 +55,24 @@ class DHTxx:
 if __name__ == '__main__':
     from module import console
 
-    dht11 = DHTxx()
+    device = None
+    while True:
+        console.print('===选择温湿度模块===\n1.DHT11\n2.DHT22')
+        choice = console.input('请选择温湿度模块(1-2):')
+        if choice == '1':
+            device = DHTxx.II
+            break
+        elif choice == '2':
+            device = DHTxx.ZZ
+            break
+        else:
+            console.print(f'"{choice}"无效选择,请重试。')
+            continue
+    dht = DHTxx(hardware=device)
+
     while True:
         try:
-            console.print(dht11.get_data())
+            console.print(dht.get_data())
             time.sleep(1)
         except KeyboardInterrupt:
-            pass
+            dht.dht.exit()

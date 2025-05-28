@@ -49,7 +49,7 @@
 
     <script>
         function fetchSensorData() {
-            fetch('/dht11')
+            fetch('/dht22')
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('temperature').textContent = data.temperature !== null ? data.temperature.toFixed(1) : '--';

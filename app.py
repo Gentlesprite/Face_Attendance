@@ -128,9 +128,9 @@ def workers():
     return render_template('workers.html', records=db.data)
 
 
-@app.route('/dht11')
-def dht11():
-    return jsonify(dht11.get_data())
+@app.route('/dht22')
+def dht22():
+    return jsonify(dht22.get_data())
 
 
 if __name__ == '__main__':
@@ -176,6 +176,6 @@ class MQTT:
     )
     web_detector = WebFaceDetect(db)
     os.makedirs(WebFaceDetect.UPLOAD_FOLDER, exist_ok=True)
-    dht11 = DHTxx()
+    dht22 = DHTxx(hardware=DHTxx.ZZ)
     app.config['UPLOAD_FOLDER'] = WebFaceDetect.UPLOAD_FOLDER
     app.run(host=FlaskConfig.HOST, port=FlaskConfig.PORT, debug=True)

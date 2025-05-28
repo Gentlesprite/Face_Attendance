@@ -84,7 +84,7 @@
     <script>
         // 获取温湿度数据并更新显示
         function updateEnvironmentData() {
-            fetch('/dht11')
+            fetch('/dht22')
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('temperature-value').textContent = data.temperature + ' °C';

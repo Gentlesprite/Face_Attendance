@@ -4,20 +4,26 @@
 # Time:2025/5/17 13:39
 # File:web_detect.py
 import os
+import sys
 import time
 
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-from config import MQTTConfig
 from module import log, DIRECTORY_NAME, ALARM_TIMEOUT
 from module.utils import format_time
 from module.hook_mqtt import HookMQTTClient
 from module.detect import FaceDetect
 from module.database import MySQLDatabase
 from hardware.sr501 import SR501
-from hardware.beep import Beep
+from hardware.beep import PWMBeep
+
+try:
+    from config import MQTTConfig
+except ImportError:
+    log.warning('请先完善"config.py"配置文件。')
+    sys.exit(0)
 
 
 class WebFaceDetect(FaceDetect):
@@ -75,7 +81,7 @@ class WebFaceDetect(FaceDetect):
     def gen_frames(self):
         """生成带有面部检测框和识别结果的视频帧"""
         sr501 = SR501()
-        beep = Beep()
+        beep = PWMBeep()
         cap = cv2.VideoCapture(0)
         default_frame = (
                 b'--frame\r\n'
