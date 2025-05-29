@@ -15,5 +15,6 @@ try:
 except ImportError as e:
     import_error(e)
 DHTxx_PIN = board.D26
-BEEP_PIN = 16
-SR501_PIN = 14
+BEEP_PIN: int = 16
+SR501_PIN: int = 14
+RGB_PIN: tuple = (1, 7, 8)
