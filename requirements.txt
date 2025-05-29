@@ -19,3 +19,5 @@ lgpio
 sysv-ipc
 rpi-lgpio
 paho-mqtt
+adafruit-circuitpython-pca9685
+adafruit-circuitpython-motor

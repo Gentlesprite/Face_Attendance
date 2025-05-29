@@ -17,7 +17,7 @@ from flask import Flask, render_template, Response, redirect, send_file, jsonify
 from module import log
 from module.database import MySQLDatabase
 from module.web_detect import WebFaceDetect
-from hardware.dht11 import DHTxx
+from hardware.dhtxx import DHTxx
 
 app = Flask(__name__)
 app.secret_key = '1234-5678'

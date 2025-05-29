@@ -18,6 +18,7 @@ from module.detect import FaceDetect
 from module.database import MySQLDatabase
 from hardware.sr501 import SR501
 from hardware.beep import PWMBeep
+from hardware.mg90s import ServoController
 
 try:
     from config import MQTTConfig
@@ -82,6 +83,7 @@ class WebFaceDetect(FaceDetect):
         """生成带有面部检测框和识别结果的视频帧"""
         sr501 = SR501()
         beep = PWMBeep()
+        mg90s = ServoController(channel=0)
         cap = cv2.VideoCapture(0)
         default_frame = (
                 b'--frame\r\n'
@@ -145,12 +147,11 @@ class WebFaceDetect(FaceDetect):
                     if match_name:
                         _, buffer = cv2.imencode('.jpg', frame)
                         self.mqtt.publish(MQTTConfig.TOPIC, f'[{format_time()}] {match_name}已进入。')
-                        yield (
-                                b'--frame\r\n'
-                                b'Content-Type: image/jpeg\r\n\r\n' +
-                                buffer.tobytes() +
-                                b'\r\n'
-                        )
+                        for _ in range(3):  # 连续发送3次相同帧
+                            yield (
+                                    b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n'
+                            )
+                        mg90s.open_door()
                         break
 
                     if (time.time() - start_time) > ALARM_TIMEOUT:
